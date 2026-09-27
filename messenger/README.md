@@ -81,12 +81,18 @@ sudo ./scripts/add-user.sh kim --admin     # 관리자
 
 ## QR 코드
 ```bash
-sudo ./scripts/qr.sh                                   # 웹 채팅 주소 QR
-sudo ./scripts/qr.sh https://apps.apple.com/app/id1631335820   # 아이폰 Element X 설치 QR
+sudo ./scripts/qr.sh           # 웹 채팅 주소
+sudo ./scripts/qr.sh ios       # 아이폰 Element X 설치
+sudo ./scripts/qr.sh android   # 안드로이드 Element X 설치
+sudo ./scripts/qr.sh app       # 앱 접속 링크: 서버 주소 자동 입력 (시험 기능)
 ```
 터미널에 QR 이 나오고, PNG 파일이 `data/qr/` 에 저장됩니다. 인쇄하거나 공지에 붙여 쓰세요.
 
-> 휴대폰 카메라로 QR 을 찍어 **로그인까지 자동으로 되는 기능**(Element X 의 "QR 로그인")은
+`app` QR 은 앱이 설치된 폰에서 찍으면 서버 주소가 채워진 로그인 화면으로 이동하도록 만든 링크입니다.
+Element X 버전에 따라 동작이 다를 수 있으니 **아이폰·안드로이드에서 한 번씩 확인한 뒤** 배포하세요.
+안 되면 앱에서 `onepin.net` 을 직접 입력하면 됩니다.
+
+> 카메라로 찍어 **로그인까지 자동으로 되는 기능**(Element X 의 "QR 로그인")은
 > 별도 인증 서버(MAS)가 필요해서 이 기본 설치에는 포함되지 않습니다.
 
 ## 로고·이름 바꾸기
