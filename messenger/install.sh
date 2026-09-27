@@ -143,6 +143,19 @@ esac
 echo "$WEB 에 ${MATRIX_HOST}, ${CHAT_HOST} 연결 완료"
 
 # ── 7. HTTPS 인증서 ──────────────────────────────────────────
+info "DNS 확인"
+MY_IP="$(curl -fsS -4 -m 10 https://api.ipify.org 2>/dev/null || true)"
+for h in "$MATRIX_HOST" "$CHAT_HOST"; do
+  ip="$(getent ahostsv4 "$h" 2>/dev/null | awk 'NR==1{print $1}')"
+  if [ -z "$ip" ]; then
+    warn "$h 가 DNS 에 없습니다. Cloudflare 에 A 레코드를 추가하세요 (README 참고)."
+  elif [ -n "$MY_IP" ] && [ "$ip" != "$MY_IP" ]; then
+    warn "$h → $ip (이 서버: $MY_IP). Cloudflare 프록시(주황 구름)가 켜져 있으면 인증서 발급이 실패할 수 있습니다. 'DNS 전용'(회색 구름)으로 바꾸세요."
+  else
+    echo "$h → $ip OK"
+  fi
+done
+
 info "HTTPS 인증서 발급 (Let's Encrypt)"
 if ! command -v certbot >/dev/null; then
   if [ "$WEB" = nginx ]; then install_pkgs certbot python3-certbot-nginx
@@ -177,6 +190,7 @@ cat <<MSG
   접속 QR 코드: sudo ./scripts/qr.sh
 
   ${SERVER_NAME} 에서 앱이 자동으로 서버를 찾게 하려면
-  아래 파일을 https://${SERVER_NAME}/.well-known/matrix/client 로 올리세요:
+  Cloudflare Worker 를 등록하세요: cloudflare/well-known-worker.js (README 참고)
+  또는 아래 파일을 https://${SERVER_NAME}/.well-known/matrix/client 로 올리세요:
     $DIR/data/well-known-client.json
 MSG

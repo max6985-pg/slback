@@ -15,7 +15,29 @@ matrix.onepin.net  → Synapse 메신저 서버
 
 ## 준비물
 - root 권한이 있는 리눅스 서버 (Ubuntu/Debian/Rocky 등), 여유 메모리 2GB 이상
-- DNS에 `chat.onepin.net`, `matrix.onepin.net` 을 서버 IP로 연결 (A 레코드)
+- Cloudflare DNS 에 `chat`, `matrix` A 레코드 추가 (아래 참고)
+
+## Cloudflare DNS 설정 (설치 전에)
+Cloudflare 대시보드 → onepin.net → **DNS → Records** 에서 두 개를 추가합니다.
+
+| Type | Name | IPv4 address | Proxy status |
+|---|---|---|---|
+| A | `matrix` | 서버 IP | **DNS only (회색 구름)** |
+| A | `chat` | 서버 IP | **DNS only (회색 구름)** |
+
+- **회색 구름(DNS only)을 권장**합니다. 주황 구름(프록시)을 켜면 인증서 발급이 실패하거나,
+  무료 요금제는 업로드가 100MB 로 제한됩니다.
+- 설치 후 꼭 주황 구름을 쓰고 싶다면: SSL/TLS 모드를 **Full (strict)** 로 두고, `.env` 의 `MAX_UPLOAD_SIZE` 를 100M 이하로 유지하세요.
+- CMS(`cms.onepin.net`) 레코드는 건드리지 않습니다.
+
+### 앱에서 `onepin.net` 만 입력해도 되게 하기 (선택)
+Cloudflare 대시보드 → **Workers & Pages → Create → Worker**
+1. `cloudflare/well-known-worker.js` 내용을 붙여 넣고 Deploy
+2. Worker 의 **Settings → Domains & Routes → Add route**: `onepin.net/.well-known/matrix/*` (Zone: onepin.net)
+3. 확인: 브라우저에서 `https://onepin.net/.well-known/matrix/client` 열면 JSON 이 나오면 성공
+
+(Worker 대신 onepin.net 웹 서버에 `data/well-known-client.json` 파일을 올려도 됩니다.
+이 단계가 없으면 앱에서 `matrix.onepin.net` 을 입력하면 됩니다.)
 
 ## 설치 (3단계)
 
@@ -55,8 +77,7 @@ sudo ./scripts/add-user.sh kim --admin     # 관리자
 2. "서버 변경" → `onepin.net` 입력 (또는 `matrix.onepin.net`)
 3. 받은 아이디·비밀번호로 로그인
 
-`onepin.net` 만 입력해도 되게 하려면, 설치 후 생성된 `data/well-known-client.json` 파일을
-`https://onepin.net/.well-known/matrix/client` 주소로 올려 두세요 (Content-Type: `application/json`).
+`onepin.net` 만 입력하려면 위의 **Cloudflare Worker** 설정이 필요합니다.
 
 ## QR 코드
 ```bash
