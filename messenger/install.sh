@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# onepin 비공개 메신저 설치 스크립트 (Synapse + Element 웹)
+# onepin 비공개 메신저 설치 스크립트 (Synapse + Element 웹 + 푸시 알림)
 # 사용법: sudo ./install.sh
 # 여러 번 실행해도 안전합니다 (기존 데이터와 비밀값은 유지).
 set -euo pipefail
@@ -33,6 +33,10 @@ set_secret() {  # 비어 있는 비밀값만 생성
   fi
 }
 
+set_default() {  # 예전 .env 에 없는 설정은 기본값으로 추가
+  grep -qE "^${1}=" .env || echo "${1}=${2}" >> .env
+}
+
 # ── 2. 필요한 프로그램 ─────────────────────────────────────────
 install_pkgs() {
   if command -v apt-get >/dev/null; then
@@ -55,14 +59,17 @@ fi
 docker compose version >/dev/null 2>&1 || die "docker compose 플러그인이 없습니다. Docker 를 최신 버전으로 업데이트하세요."
 
 for k in POSTGRES_PASSWORD REGISTRATION_SHARED_SECRET MACAROON_SECRET_KEY FORM_SECRET; do set_secret "$k"; done
+set_default PUSH_APP_ID net.onepin.push
+set_default PUSH_SUBNET 10.250.250.0/29
+set_default SYGNAL_IP 10.250.250.4
 chmod 600 .env
 set -a; . ./.env; set +a
 
-for v in SERVER_NAME MATRIX_HOST CHAT_HOST BRAND ADMIN_EMAIL ADMIN_USER SYNAPSE_PORT ELEMENT_PORT MAX_UPLOAD_SIZE; do
+for v in SERVER_NAME MATRIX_HOST CHAT_HOST BRAND ADMIN_EMAIL ADMIN_USER SYNAPSE_PORT ELEMENT_PORT MAX_UPLOAD_SIZE PUSH_APP_ID PUSH_SUBNET SYGNAL_IP; do
   [ -n "${!v:-}" ] || die ".env 의 $v 값이 비어 있습니다."
 done
 
-VARS='${SERVER_NAME} ${MATRIX_HOST} ${CHAT_HOST} ${BRAND} ${SYNAPSE_PORT} ${ELEMENT_PORT} ${MAX_UPLOAD_SIZE} ${POSTGRES_PASSWORD} ${REGISTRATION_SHARED_SECRET} ${MACAROON_SECRET_KEY} ${FORM_SECRET} ${CERT_DIR}'
+VARS='${SERVER_NAME} ${MATRIX_HOST} ${CHAT_HOST} ${BRAND} ${ADMIN_EMAIL} ${SYNAPSE_PORT} ${ELEMENT_PORT} ${MAX_UPLOAD_SIZE} ${POSTGRES_PASSWORD} ${REGISTRATION_SHARED_SECRET} ${MACAROON_SECRET_KEY} ${FORM_SECRET} ${CERT_DIR} ${PUSH_APP_ID} ${SYGNAL_IP} ${VAPID_PUBLIC_KEY}'
 render() { envsubst "$VARS" < "$1" > "$2"; }
 
 # ── 3. 포트 충돌 확인 ─────────────────────────────────────────
@@ -88,6 +95,23 @@ chmod 600 data/synapse/homeserver.yaml
 render templates/element-config.json data/element/config.json
 render templates/well-known-client.json data/well-known-client.json
 
+# ── 4-1. 푸시 알림 (Sygnal + 알림 켜기 페이지 /push/) ──────────
+info "푸시 알림 설정"
+mkdir -p data/sygnal data/push
+VAPID_KEY=data/sygnal/vapid_private.pem
+if [ ! -s "$VAPID_KEY" ]; then
+  # 웹 푸시 서명 키 (P-256). 바꾸면 모든 기기에서 알림을 다시 켜야 합니다
+  ( umask 077; openssl ecparam -name prime256v1 -genkey -noout -out "$VAPID_KEY" )
+fi
+chmod 600 "$VAPID_KEY"
+VAPID_PUBLIC_KEY="$(openssl ec -in "$VAPID_KEY" -pubout -outform DER 2>/dev/null | tail -c 65 | base64 -w0 | tr '+/' '-_' | tr -d '=')"
+[ ${#VAPID_PUBLIC_KEY} -eq 87 ] || die "VAPID 공개키를 만들지 못했습니다 ($VAPID_KEY 확인)."
+export VAPID_PUBLIC_KEY
+render templates/sygnal.yaml data/sygnal/sygnal.yaml
+chmod 600 data/sygnal/sygnal.yaml
+for f in index.html manifest.json config.json; do render "templates/push/$f" "data/push/$f"; done
+cp templates/push/app.js templates/push/sw.js data/push/
+
 # ── 5. 실행 ──────────────────────────────────────────────────
 info "컨테이너 실행"
 docker compose pull -q
@@ -100,6 +124,19 @@ for i in $(seq 1 60); do
   sleep 2
 done
 echo "Synapse 정상 동작"
+
+# 홈 화면 아이콘: 로고(SVG)를 PNG 로 변환, 안 되면 Element 기본 아이콘 사용
+make_icon() {  # 크기 출력파일
+  if command -v rsvg-convert >/dev/null || install_pkgs librsvg2-bin >/dev/null 2>&1 || install_pkgs librsvg2-tools >/dev/null 2>&1; then
+    rsvg-convert -w "$1" -h "$1" -b white element/custom/logo.svg -o "$2" 2>/dev/null && return 0
+  fi
+  curl -fsS "http://127.0.0.1:${ELEMENT_PORT}/vector-icons/$1.png" -o "$2" 2>/dev/null
+}
+for sz in 180 512; do
+  [ -s "data/push/icon-$sz.png" ] && [ "data/push/icon-$sz.png" -nt element/custom/logo.svg ] && continue
+  make_icon "$sz" "data/push/icon-$sz.png" || warn "홈 화면 아이콘(icon-$sz.png)을 만들지 못했습니다."
+done
+docker compose ps --status running sygnal -q | grep -q . || warn "푸시 서버(Sygnal)가 실행되지 않았습니다: docker compose logs sygnal"
 
 # ── 6. 웹서버(Nginx/Apache) 연결 ──────────────────────────────
 # 인증서: certs/origin.pem + certs/origin.key (Cloudflare 원본 인증서) 가 있으면 그것을 사용,
@@ -216,6 +253,7 @@ fi
 info "설치 완료"
 cat <<MSG
   웹 채팅:     https://${CHAT_HOST}
+  알림 켜기:   https://${CHAT_HOST}/push/   (휴대폰에서 열어 홈 화면에 추가)
   서버 주소:   https://${MATRIX_HOST}
   아이디 형식: @아이디:${SERVER_NAME}
 
