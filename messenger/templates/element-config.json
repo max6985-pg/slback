@@ -14,10 +14,22 @@
   "room_directory": {
     "servers": ["${SERVER_NAME}"]
   },
+  "integrations_ui_url": null,
+  "integrations_rest_url": null,
+  "integrations_widgets_urls": null,
+  "bug_report_endpoint_url": null,
   "setting_defaults": {
     "UIFeature.registration": false,
     "UIFeature.passwordReset": false,
-    "UIFeature.thirdPartyId": false
+    "UIFeature.thirdPartyId": false,
+    "UIFeature.widgets": false,
+    "UIFeature.voip": false,
+    "UIFeature.locationSharing": false,
+    "UIFeature.feedback": false,
+    "UIFeature.shareSocial": false,
+    "fallbackICEServerAllowed": false,
+    "urlPreviewsEnabled": false,
+    "urlPreviewsEnabled_e2ee": false
   },
   "branding": {
     "auth_header_logo_url": "custom/logo.svg",

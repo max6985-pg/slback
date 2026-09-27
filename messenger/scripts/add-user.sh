@@ -18,9 +18,12 @@ fi
 read -rsp "@${USER_ID}:${SERVER_NAME} 비밀번호: " PW; echo
 read -rsp "비밀번호 확인: " PW2; echo
 [ "$PW" = "$PW2" ] || { echo "비밀번호가 일치하지 않습니다."; exit 1; }
-[ ${#PW} -ge 8 ]   || { echo "비밀번호는 8자 이상이어야 합니다."; exit 1; }
+[ ${#PW} -ge 12 ]  || { echo "비밀번호는 12자 이상이어야 합니다."; exit 1; }
+[[ "$PW" =~ [0-9] && "$PW" =~ [a-z] ]] || { echo "비밀번호에 숫자와 영문 소문자를 모두 넣어 주세요."; exit 1; }
 
-docker compose exec -T synapse register_new_matrix_user \
-  -c /data/homeserver.yaml -u "$USER_ID" -p "$PW" "$ADMIN_FLAG" http://localhost:8008
+# 비밀번호는 명령줄(ps 에 보임)이 아니라 표준입력으로 전달
+printf '%s' "$PW" | docker compose exec -T synapse register_new_matrix_user \
+  -c /data/homeserver.yaml -u "$USER_ID" --password-file /dev/stdin "$ADMIN_FLAG" http://localhost:8008
+unset PW PW2
 
 echo "완료: @${USER_ID}:${SERVER_NAME}"

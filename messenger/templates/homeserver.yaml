@@ -57,3 +57,39 @@ encryption_enabled_by_default_for_room_type: all
 # 오래된 원격 미디어 캐시 정리 (로컬 파일은 보존)
 media_retention:
   remote_media_lifetime: 90d
+
+# ── 보안 강화 ───────────────────────────────────────────────
+# 링크 미리보기 끄기: 서버가 외부 사이트에 접속해 대화 속 주소를 노출하지 않도록
+url_preview_enabled: false
+
+# 프로필(이름·사진)은 로그인한, 같은 방에 있는 사용자에게만 보여 줌
+require_auth_for_profile_requests: true
+limit_profile_requests_to_users_who_share_rooms: true
+
+# 비밀번호 규칙: 12자 이상, 숫자·영문 소문자 포함
+password_config:
+  enabled: true
+  localdb_enabled: true
+  policy:
+    enabled: true
+    minimum_length: 12
+    require_digit: true
+    require_lowercase: true
+    require_symbol: false
+    require_uppercase: false
+
+# 로그인 무차별 대입 방지 (같은 계정 5회 실패 시 대기)
+rc_login:
+  address:
+    per_second: 0.1
+    burst_count: 5
+  account:
+    per_second: 0.1
+    burst_count: 5
+  failed_attempts:
+    per_second: 0.05
+    burst_count: 5
+
+# 기록 최소화: 접속 IP 는 7일, 삭제한 메시지 원본은 1일 후 완전 삭제
+user_ips_max_age: 7d
+redaction_retention_period: 1d

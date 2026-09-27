@@ -5,6 +5,7 @@ Matrix(Synapse) 서버와 Element 웹으로 만든, **우리끼리만 쓰는 메
 - 가입이 막혀 있어서 관리자가 만든 계정만 쓸 수 있습니다
 - 다른 Matrix 서버와 연결하지 않습니다 (federation 차단)
 - 새 대화방은 기본으로 종단간 암호화됩니다
+- 외부 서비스(통합 관리자·지도·신고·링크 미리보기 등)에 접속하지 않도록 막아 두었습니다 (아래 **보안** 참고)
 - 기존 CMS(`cms.onepin.net`)는 그대로 두고, 서브도메인 2개만 추가합니다
 
 ```
@@ -20,7 +21,12 @@ matrix.onepin.net  → Synapse 메신저 서버
 ## Cloudflare DNS 설정 (설치 전에)
 메신저 서버로 `matrix.onepin.net`, `chat.onepin.net` 이 연결돼야 합니다. 두 방법 중 하나를 고르세요.
 
-### 방법 A — 주황 구름(프록시) + Cloudflare 원본 인증서 (권장)
+> 🔒 **보안이 최우선이면 방법 B(회색 구름)를 쓰세요.**
+> 주황 구름은 Cloudflare 가 HTTPS 를 풀어서 다시 암호화하기 때문에, Cloudflare 가 **로그인 비밀번호, 접속 토큰,
+> 누가 언제 누구와 대화하는지(메타데이터)** 를 볼 수 있습니다. 메시지 내용은 종단간 암호화로 보호되지만,
+> 회색 구름이면 암호화가 사용자 기기 ↔ 우리 서버 사이에서만 풀립니다.
+
+### 방법 A — 주황 구름(프록시) + Cloudflare 원본 인증서 (편의 우선)
 와일드카드 `*` 나 `matrix`·`chat` 레코드가 **이 서버로** 프록시되고 있으면 DNS 는 그대로 둡니다.
 
 1. Cloudflare → onepin.net → **SSL/TLS → Origin Server → Create Certificate**
@@ -37,7 +43,7 @@ matrix.onepin.net  → Synapse 메신저 서버
 
 > 이미 다른 사이트용 Cloudflare 원본 인증서(`*.onepin.net`)가 서버에 있으면 그 파일을 복사해 써도 됩니다.
 
-### 방법 B — 회색 구름(DNS only)
+### 방법 B — 회색 구름(DNS only) (보안 우선, 권장)
 DNS → Records 에 전용 레코드를 추가합니다 (와일드카드보다 우선 적용).
 
 | Type | Name | IPv4 address | Proxy status |
@@ -83,6 +89,7 @@ sudo ./install.sh
 > ⚠ `SERVER_NAME` 은 사용자 아이디(`@hong:onepin.net`)의 일부라서 **설치 후에는 바꿀 수 없습니다.**
 
 ## 사용자 추가
+비밀번호는 **12자 이상, 숫자와 영문 소문자 포함**이어야 합니다.
 아이디는 **영문 소문자·숫자·`._-`** 만 쓸 수 있습니다. 한글 이름은 로그인 후 프로필의 "표시 이름"으로 설정합니다.
 
 ```bash
@@ -127,6 +134,32 @@ docker compose pull && docker compose up -d   # 업데이트
 **백업 대상**: `messenger/.env` 와 `messenger/data/` 폴더 전체
 (DB 는 `docker compose exec postgres pg_dump -U synapse synapse > backup.sql` 로도 백업 가능)
 
+## 보안
+설치할 때 아래 설정이 자동으로 적용됩니다.
+
+| 항목 | 설정 |
+|---|---|
+| 가입 | 막힘. 관리자가 `add-user.sh` 로 만든 계정만 사용 |
+| 다른 서버 연동 | 차단 (federation 없음, 외부 키 서버 없음) |
+| 메시지 | 새 방은 모두 종단간 암호화. **서버 관리자도 내용을 볼 수 없음** |
+| 외부 접속 | 통합 관리자(scalar.vector.im), 위젯, 지도, 오류 신고, 외부 TURN(turn.matrix.org), 링크 미리보기 모두 끔 |
+| 영상·음성 통화 | 꺼 둠 (외부 통화 서버를 쓰지 않도록). 자체 TURN 서버를 설치한 뒤 켤 수 있음 |
+| 비밀번호 | 12자 이상, 숫자·영문 소문자 필수. 로그인 5회 실패 시 잠시 차단 |
+| 프로필 | 같은 방에 있는 사용자에게만 공개 |
+| 기록 | 접속 IP 7일, 삭제한 메시지 원본 1일 후 완전 삭제 |
+| 웹 | HTTPS 강제(HSTS), 주소 유출 방지(Referrer), 위치·카메라·마이크 권한 차단 |
+| 서버 포트 | Synapse·Element·DB 는 `127.0.0.1` 에만 열림. 관리자 API(`/_synapse/admin`)는 외부에 열지 않음 |
+
+**사용자에게 꼭 안내할 것**
+1. 첫 로그인 후 **설정 → 보안 → 보안 키(복구 키) 설정**. 이 키가 없으면 기기를 잃었을 때 이전 대화를 복구할 수 없습니다. 서버 관리자도 복구해 줄 수 없습니다.
+2. 새 기기로 로그인하면 기존 기기에서 **"세션 확인"**을 해 주세요. 확인 안 된 기기는 방마다 경고가 표시됩니다.
+3. 대화 상대 프로필에서 **"확인(Verify)"** 을 한 번 해 두면 중간자 공격을 막을 수 있습니다.
+
+**서버 관리자가 할 일**
+- 서버는 SSH 키 로그인만 허용, 방화벽은 22·80·443 만 열기
+- `.env`, `data/`, `certs/` 는 절대 외부로 공유하지 말 것 (백업도 암호화해서 보관)
+- 한 달에 한 번 `docker compose pull && docker compose up -d` 로 보안 업데이트
+
 ## 참고
-- 영상·음성 통화를 쓰려면 TURN 서버(coturn)를 추가로 설치해야 합니다
+- 영상·음성 통화를 쓰려면 TURN 서버(coturn)를 추가로 설치하고 `templates/element-config.json` 의 `UIFeature.voip` 를 `true` 로 바꿔야 합니다
 - Synapse·Element 는 AGPL-3.0 라이선스입니다. 내부 사용은 문제없습니다
