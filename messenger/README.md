@@ -18,17 +18,35 @@ matrix.onepin.net  → Synapse 메신저 서버
 - Cloudflare DNS 에 `chat`, `matrix` A 레코드 추가 (아래 참고)
 
 ## Cloudflare DNS 설정 (설치 전에)
-Cloudflare 대시보드 → onepin.net → **DNS → Records** 에서 두 개를 추가합니다.
+메신저 서버로 `matrix.onepin.net`, `chat.onepin.net` 이 연결돼야 합니다. 두 방법 중 하나를 고르세요.
+
+### 방법 A — 주황 구름(프록시) + Cloudflare 원본 인증서 (권장)
+와일드카드 `*` 나 `matrix`·`chat` 레코드가 **이 서버로** 프록시되고 있으면 DNS 는 그대로 둡니다.
+
+1. Cloudflare → onepin.net → **SSL/TLS → Origin Server → Create Certificate**
+   - 호스트 이름: `*.onepin.net`, `onepin.net` (기본값), 유효기간 15년 → Create
+2. 서버에 파일 두 개로 저장 (채팅·깃에 올리지 마세요, `certs/` 는 git 에서 제외됨)
+   ```bash
+   mkdir -p slback/messenger/certs
+   sudo nano slback/messenger/certs/origin.pem   # "Origin Certificate" 내용 붙여넣기
+   sudo nano slback/messenger/certs/origin.key   # "Private Key" 내용 붙여넣기
+   ```
+3. **SSL/TLS → Overview → Full (strict)** 로 설정
+4. `sudo ./install.sh` 실행 → 원본 인증서를 자동으로 인식해 443 포트에 적용합니다
+5. 업로드는 무료 요금제 기준 100MB 까지
+
+> 이미 다른 사이트용 Cloudflare 원본 인증서(`*.onepin.net`)가 서버에 있으면 그 파일을 복사해 써도 됩니다.
+
+### 방법 B — 회색 구름(DNS only)
+DNS → Records 에 전용 레코드를 추가합니다 (와일드카드보다 우선 적용).
 
 | Type | Name | IPv4 address | Proxy status |
 |---|---|---|---|
 | A | `matrix` | 서버 IP | **DNS only (회색 구름)** |
 | A | `chat` | 서버 IP | **DNS only (회색 구름)** |
 
-- **회색 구름(DNS only)을 권장**합니다. 주황 구름(프록시)을 켜면 인증서 발급이 실패하거나,
-  무료 요금제는 업로드가 100MB 로 제한됩니다.
-- 설치 후 꼭 주황 구름을 쓰고 싶다면: SSL/TLS 모드를 **Full (strict)** 로 두고, `.env` 의 `MAX_UPLOAD_SIZE` 를 100M 이하로 유지하세요.
-- CMS(`cms.onepin.net`) 레코드는 건드리지 않습니다.
+> 어느 방법이든 Cloudflare 가 가리키는 **원본 서버가 메신저를 설치한 서버**여야 합니다.
+> CMS(`cms.onepin.net`)·`www` 레코드는 건드리지 않습니다.
 
 ### 앱에서 `onepin.net` 만 입력해도 되게 하기 (선택)
 Cloudflare 대시보드 → **Workers & Pages → Create → Worker**
@@ -59,7 +77,7 @@ sudo ./install.sh
 2. DB 비밀번호 등 비밀값 자동 생성 (`.env`, git 에 올라가지 않음)
 3. Synapse + PostgreSQL + Element 웹 실행 (내부 포트 `127.0.0.1` 에만 열림)
 4. 기존 Nginx 또는 Apache 에 서브도메인 연결 (없으면 Nginx 설치)
-5. Let's Encrypt HTTPS 인증서 발급
+5. HTTPS 적용 (`certs/` 의 Cloudflare 원본 인증서, 없으면 Let's Encrypt 발급)
 6. 관리자 계정 생성
 
 > ⚠ `SERVER_NAME` 은 사용자 아이디(`@hong:onepin.net`)의 일부라서 **설치 후에는 바꿀 수 없습니다.**

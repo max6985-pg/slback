@@ -62,7 +62,7 @@ for v in SERVER_NAME MATRIX_HOST CHAT_HOST BRAND ADMIN_EMAIL ADMIN_USER SYNAPSE_
   [ -n "${!v:-}" ] || die ".env 의 $v 값이 비어 있습니다."
 done
 
-VARS='${SERVER_NAME} ${MATRIX_HOST} ${CHAT_HOST} ${BRAND} ${SYNAPSE_PORT} ${ELEMENT_PORT} ${MAX_UPLOAD_SIZE} ${POSTGRES_PASSWORD} ${REGISTRATION_SHARED_SECRET} ${MACAROON_SECRET_KEY} ${FORM_SECRET}'
+VARS='${SERVER_NAME} ${MATRIX_HOST} ${CHAT_HOST} ${BRAND} ${SYNAPSE_PORT} ${ELEMENT_PORT} ${MAX_UPLOAD_SIZE} ${POSTGRES_PASSWORD} ${REGISTRATION_SHARED_SECRET} ${MACAROON_SECRET_KEY} ${FORM_SECRET} ${CERT_DIR}'
 render() { envsubst "$VARS" < "$1" > "$2"; }
 
 # ── 3. 포트 충돌 확인 ─────────────────────────────────────────
@@ -102,6 +102,21 @@ done
 echo "Synapse 정상 동작"
 
 # ── 6. 웹서버(Nginx/Apache) 연결 ──────────────────────────────
+# 인증서: certs/origin.pem + certs/origin.key (Cloudflare 원본 인증서) 가 있으면 그것을 사용,
+#         없으면 Let's Encrypt 로 발급 (7단계)
+CERT_DIR="$DIR/certs"
+if [ -s "$CERT_DIR/origin.pem" ] && [ -s "$CERT_DIR/origin.key" ]; then
+  CERT_MODE=cloudflare
+  chmod 600 "$CERT_DIR/origin.key"
+  SUFFIX=-ssl
+  info "Cloudflare 원본 인증서 사용 ($CERT_DIR)"
+else
+  CERT_MODE=letsencrypt
+  SUFFIX=
+  warn "certs/origin.pem, certs/origin.key 가 없어 Let's Encrypt 로 발급합니다 (README 'Cloudflare 인증서' 참고)."
+fi
+export CERT_DIR
+
 info "웹서버 연결"
 WEB=""
 if systemctl is-active --quiet nginx 2>/dev/null; then WEB=nginx
@@ -118,21 +133,22 @@ case "$WEB" in
   nginx)
     CONF=/etc/nginx/conf.d/onepin-messenger.conf
     [ -d /etc/nginx/conf.d ] || die "/etc/nginx/conf.d 가 없습니다. templates/webserver/nginx.conf 를 수동으로 적용하세요."
-    render templates/webserver/nginx.conf "$CONF"
+    render "templates/webserver/nginx${SUFFIX}.conf" "$CONF"
     nginx -t || { rm -f "$CONF"; die "Nginx 설정 오류로 적용을 취소했습니다."; }
     systemctl reload nginx
     ;;
   apache2)
-    a2enmod -q proxy proxy_http headers ssl
+    a2enmod -q proxy proxy_http headers ssl rewrite
     CONF=/etc/apache2/sites-available/onepin-messenger.conf
-    render templates/webserver/apache.conf "$CONF"
+    render "templates/webserver/apache${SUFFIX}.conf" "$CONF"
     a2ensite -q onepin-messenger
     apache2ctl configtest || { a2dissite -q onepin-messenger; die "Apache 설정 오류로 적용을 취소했습니다."; }
     systemctl reload apache2
     ;;
   httpd)
+    [ "$CERT_MODE" = cloudflare ] && { rpm -q mod_ssl >/dev/null 2>&1 || install_pkgs mod_ssl; }
     CONF=/etc/httpd/conf.d/onepin-messenger.conf
-    render templates/webserver/apache.conf "$CONF"
+    render "templates/webserver/apache${SUFFIX}.conf" "$CONF"
     apachectl configtest || { rm -f "$CONF"; die "Apache 설정 오류로 적용을 취소했습니다."; }
     systemctl reload httpd
     ;;
@@ -142,7 +158,12 @@ case "$WEB" in
 esac
 echo "$WEB 에 ${MATRIX_HOST}, ${CHAT_HOST} 연결 완료"
 
-# ── 7. HTTPS 인증서 ──────────────────────────────────────────
+# ── 7. HTTPS 인증서 (Let's Encrypt, 원본 인증서가 없을 때만) ─────
+if [ "$CERT_MODE" = cloudflare ]; then
+  info "인증서: Cloudflare 원본 인증서 적용 완료 (SSL/TLS 모드를 Full (strict) 로 설정하세요)"
+else
+# CF_API_TOKEN 이 있으면 Cloudflare DNS 인증 → 주황 구름(프록시)·와일드카드 레코드에서도 발급됨
+# 없으면 HTTP 인증 → matrix/chat 레코드가 회색 구름(DNS only)이어야 함
 info "DNS 확인"
 MY_IP="$(curl -fsS -4 -m 10 https://api.ipify.org 2>/dev/null || true)"
 for h in "$MATRIX_HOST" "$CHAT_HOST"; do
@@ -150,23 +171,35 @@ for h in "$MATRIX_HOST" "$CHAT_HOST"; do
   if [ -z "$ip" ]; then
     warn "$h 가 DNS 에 없습니다. Cloudflare 에 A 레코드를 추가하세요 (README 참고)."
   elif [ -n "$MY_IP" ] && [ "$ip" != "$MY_IP" ]; then
-    warn "$h → $ip (이 서버: $MY_IP). Cloudflare 프록시(주황 구름)가 켜져 있으면 인증서 발급이 실패할 수 있습니다. 'DNS 전용'(회색 구름)으로 바꾸세요."
+    if [ -n "${CF_API_TOKEN:-}" ]; then
+      echo "$h → $ip (Cloudflare 프록시 경유, 원본 서버가 이 서버($MY_IP)인지 Cloudflare 에서 확인하세요)"
+    else
+      warn "$h → $ip (이 서버: $MY_IP). Cloudflare 프록시(주황 구름)면 .env 에 CF_API_TOKEN 을 넣거나 회색 구름으로 바꾸세요."
+    fi
   else
     echo "$h → $ip OK"
   fi
 done
 
 info "HTTPS 인증서 발급 (Let's Encrypt)"
-if ! command -v certbot >/dev/null; then
-  if [ "$WEB" = nginx ]; then install_pkgs certbot python3-certbot-nginx
-  else install_pkgs certbot python3-certbot-apache; fi
-fi
-CB_PLUGIN=--nginx; [ "$WEB" = nginx ] || CB_PLUGIN=--apache
-if certbot "$CB_PLUGIN" --non-interactive --agree-tos --redirect -m "$ADMIN_EMAIL" \
-     -d "$MATRIX_HOST" -d "$CHAT_HOST"; then
-  echo "인증서 발급 완료"
+CB_INSTALLER=nginx; [ "$WEB" = nginx ] || CB_INSTALLER=apache
+if [ -n "${CF_API_TOKEN:-}" ]; then
+  install_pkgs certbot "python3-certbot-$CB_INSTALLER" python3-certbot-dns-cloudflare
+  CF_INI=/etc/letsencrypt/onepin-cloudflare.ini
+  mkdir -p /etc/letsencrypt
+  ( umask 077; echo "dns_cloudflare_api_token = ${CF_API_TOKEN}" > "$CF_INI" )
+  CB_AUTH=(--authenticator dns-cloudflare --dns-cloudflare-credentials "$CF_INI" --dns-cloudflare-propagation-seconds 30)
 else
-  warn "인증서 발급 실패: DNS 에 ${MATRIX_HOST}, ${CHAT_HOST} 가 이 서버 IP 로 연결됐는지 확인 후 다시 실행하세요."
+  install_pkgs certbot "python3-certbot-$CB_INSTALLER"
+  CB_AUTH=(--authenticator "$CB_INSTALLER")
+fi
+if certbot "${CB_AUTH[@]}" --installer "$CB_INSTALLER" --non-interactive --agree-tos --redirect \
+     -m "$ADMIN_EMAIL" -d "$MATRIX_HOST" -d "$CHAT_HOST"; then
+  echo "인증서 발급 완료"
+  [ -n "${CF_API_TOKEN:-}" ] && echo "Cloudflare SSL/TLS 모드를 'Full (strict)' 로 설정하세요 (Flexible 이면 무한 리디렉션)."
+else
+  warn "인증서 발급 실패: README 의 'Cloudflare DNS 설정' 을 확인 후 다시 실행하세요."
+fi
 fi
 
 # ── 8. 관리자 계정 ────────────────────────────────────────────
