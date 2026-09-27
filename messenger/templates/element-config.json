@@ -1,0 +1,30 @@
+{
+  "brand": "${BRAND}",
+  "default_server_config": {
+    "m.homeserver": {
+      "base_url": "https://${MATRIX_HOST}",
+      "server_name": "${SERVER_NAME}"
+    }
+  },
+  "disable_custom_urls": true,
+  "disable_guests": true,
+  "disable_3pid_login": true,
+  "default_country_code": "KR",
+  "default_theme": "light",
+  "room_directory": {
+    "servers": ["${SERVER_NAME}"]
+  },
+  "setting_defaults": {
+    "UIFeature.registration": false,
+    "UIFeature.passwordReset": false,
+    "UIFeature.thirdPartyId": false
+  },
+  "branding": {
+    "auth_header_logo_url": "custom/logo.svg",
+    "auth_footer_links": [
+      { "text": "${BRAND}", "url": "https://${CHAT_HOST}" }
+    ]
+  },
+  "show_labs_settings": false,
+  "features": {}
+}

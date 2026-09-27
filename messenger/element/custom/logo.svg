@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="240" height="80" viewBox="0 0 240 80">
+  <rect x="4" y="12" width="56" height="56" rx="14" fill="#2f6fed"/>
+  <path d="M18 30h28a4 4 0 0 1 4 4v14a4 4 0 0 1-4 4H30l-8 7v-7h-4a4 4 0 0 1-4-4V34a4 4 0 0 1 4-4z" fill="#fff"/>
+  <text x="72" y="50" font-family="Pretendard, 'Noto Sans KR', sans-serif" font-size="26" font-weight="700" fill="#1f2937">OnePin</text>
+</svg>

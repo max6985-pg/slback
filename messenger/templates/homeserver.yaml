@@ -1,0 +1,59 @@
+# Synapse 설정 (install.sh 가 .env 값을 채워 data/synapse/homeserver.yaml 로 만듭니다)
+# 우리끼리만 쓰는 비공개 서버: 가입 차단 + 다른 Matrix 서버와 연동(federation) 차단
+
+server_name: "${SERVER_NAME}"
+public_baseurl: "https://${MATRIX_HOST}/"
+pid_file: /data/homeserver.pid
+report_stats: false
+
+listeners:
+  - port: 8008
+    type: http
+    tls: false
+    x_forwarded: true
+    bind_addresses: ["0.0.0.0"]
+    resources:
+      - names: [client]
+        compress: false
+
+database:
+  name: psycopg2
+  args:
+    user: synapse
+    password: "${POSTGRES_PASSWORD}"
+    database: synapse
+    host: postgres
+    cp_min: 5
+    cp_max: 10
+
+log_config: "/data/${SERVER_NAME}.log.config"
+media_store_path: /data/media_store
+signing_key_path: "/data/${SERVER_NAME}.signing.key"
+max_upload_size: "${MAX_UPLOAD_SIZE}"
+
+registration_shared_secret: "${REGISTRATION_SHARED_SECRET}"
+macaroon_secret_key: "${MACAROON_SECRET_KEY}"
+form_secret: "${FORM_SECRET}"
+
+# ── 비공개 설정 ─────────────────────────────────────────────
+# 누구나 가입하는 것을 막고, 관리자가 계정을 직접 만듭니다 (scripts/add-user.sh)
+enable_registration: false
+allow_guest_access: false
+
+# 외부 Matrix 서버와 통신하지 않습니다 (우리 서버 사용자끼리만 대화)
+federation_domain_whitelist: []
+trusted_key_servers: []
+allow_public_rooms_over_federation: false
+allow_public_rooms_without_auth: false
+
+# 사용자 검색은 같은 방에 있거나 같은 서버 사용자만
+user_directory:
+  enabled: true
+  search_all_users: true
+
+# 새 방은 기본으로 종단간 암호화
+encryption_enabled_by_default_for_room_type: all
+
+# 오래된 원격 미디어 캐시 정리 (로컬 파일은 보존)
+media_retention:
+  remote_media_lifetime: 90d

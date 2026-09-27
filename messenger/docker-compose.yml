@@ -1,0 +1,43 @@
+# onepin 비공개 메신저: Synapse + PostgreSQL + Element 웹
+# 모든 포트는 127.0.0.1 에만 열리고, 외부 접속은 기존 Nginx/Apache 가 넘겨줍니다.
+name: onepin-messenger
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: synapse
+      POSTGRES_USER: synapse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run install.sh first}
+      # Synapse 는 C 로케일 DB 가 필요합니다
+      POSTGRES_INITDB_ARGS: --encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U synapse -d synapse"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  synapse:
+    image: matrixdotorg/synapse:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
+    volumes:
+      - ./data/synapse:/data
+    ports:
+      - "127.0.0.1:${SYNAPSE_PORT:-8008}:8008"
+
+  element:
+    image: vectorim/element-web:latest
+    restart: unless-stopped
+    volumes:
+      - ./data/element/config.json:/app/config.json:ro
+      - ./element/custom:/app/custom:ro
+    ports:
+      - "127.0.0.1:${ELEMENT_PORT:-8088}:80"
