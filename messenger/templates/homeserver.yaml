@@ -90,6 +90,13 @@ rc_login:
     per_second: 0.05
     burst_count: 5
 
+# 푸시 알림: 메시지 내용·보낸 사람은 푸시 서버로 보내지 않음 (메시지 ID·안 읽은 수만)
+push:
+  include_content: false
+# 사설 IP 로의 요청은 기본 차단 → 내부 푸시 서버(Sygnal) 주소 하나만 허용
+ip_range_whitelist:
+  - "${SYGNAL_IP}/32"
+
 # 기록 최소화: 접속 IP 는 7일, 삭제한 메시지 원본은 1일 후 완전 삭제
 user_ips_max_age: 7d
 redaction_retention_period: 1d

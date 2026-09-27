@@ -1,5 +1,6 @@
-# onepin 비공개 메신저: Synapse + PostgreSQL + Element 웹
+# onepin 비공개 메신저: Synapse + PostgreSQL + Element 웹 + Sygnal(푸시)
 # 모든 포트는 127.0.0.1 에만 열리고, 외부 접속은 기존 Nginx/Apache 가 넘겨줍니다.
+# Sygnal 은 포트를 열지 않고 Synapse 와 내부 네트워크(push)로만 연결됩니다.
 name: onepin-messenger
 
 services:
@@ -32,6 +33,20 @@ services:
       - ./data/synapse:/data
     ports:
       - "127.0.0.1:${SYNAPSE_PORT:-8008}:8008"
+    networks:
+      - default
+      - push
+
+  sygnal:
+    image: matrixdotorg/sygnal:latest
+    restart: unless-stopped
+    environment:
+      SYGNAL_CONF: /data/sygnal.yaml
+    volumes:
+      - ./data/sygnal:/data:ro
+    networks:
+      push:
+        ipv4_address: ${SYGNAL_IP:-10.250.250.4}
 
   element:
     image: vectorim/element-web:latest
@@ -39,5 +54,14 @@ services:
     volumes:
       - ./data/element/config.json:/app/config.json:ro
       - ./element/custom:/app/custom:ro
+      - ./data/push:/app/push:ro
     ports:
       - "127.0.0.1:${ELEMENT_PORT:-8088}:80"
+
+networks:
+  # Synapse → Sygnal 전용. Synapse 는 사설 IP 로의 요청을 막으므로 Sygnal 주소만 고정해서 허용합니다
+  # (homeserver.yaml 의 ip_range_whitelist). 다른 네트워크와 겹치면 .env 의 PUSH_SUBNET/SYGNAL_IP 변경
+  push:
+    ipam:
+      config:
+        - subnet: ${PUSH_SUBNET:-10.250.250.0/29}

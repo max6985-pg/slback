@@ -1,0 +1,44 @@
+# Sygnal 푸시 서버 설정 (install.sh 가 .env 값을 채워 data/sygnal/sygnal.yaml 로 만듭니다)
+# Synapse → Sygnal → Apple/Google/Mozilla 웹 푸시 서버 → 휴대폰
+# 알림에는 메시지 ID·안 읽은 수만 담기고(내용·보낸 사람 없음), 그마저 암호화(RFC 8291)되어 전달됩니다.
+
+log:
+  setup:
+    version: 1
+    formatters:
+      normal:
+        format: "%(asctime)s %(levelname)-5s %(name)s %(message)s"
+    handlers:
+      stdout:
+        class: logging.StreamHandler
+        formatter: normal
+        stream: ext://sys.stdout
+    root:
+      handlers: [stdout]
+      level: WARNING
+    disable_existing_loggers: false
+  access:
+    x_forwarded_for: false
+
+# 외부에 공개하지 않음: Synapse 만 내부 네트워크(onepin-push)로 접속
+http:
+  bind_addresses: ['0.0.0.0']
+  port: 5000
+
+metrics:
+  prometheus:
+    enabled: false
+
+apps:
+  ${PUSH_APP_ID}:
+    type: webpush
+    vapid_private_key: /data/vapid_private.pem
+    vapid_contact_email: "${ADMIN_EMAIL}"
+    # 알려진 브라우저 푸시 서버로만 전송 (다른 주소로 요청을 보내지 못하게)
+    allowed_endpoints:
+      - "web.push.apple.com"
+      - "*.push.apple.com"
+      - "fcm.googleapis.com"
+      - "updates.push.services.mozilla.com"
+      - "*.notify.windows.com"
+    ttl: 3600

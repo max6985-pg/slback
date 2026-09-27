@@ -1,0 +1,8 @@
+{
+  "brand": "${BRAND}",
+  "homeserver": "https://${MATRIX_HOST}",
+  "serverName": "${SERVER_NAME}",
+  "appId": "${PUSH_APP_ID}",
+  "vapidPublicKey": "${VAPID_PUBLIC_KEY}",
+  "gatewayUrl": "http://${SYGNAL_IP}:5000/_matrix/push/v1/notify"
+}

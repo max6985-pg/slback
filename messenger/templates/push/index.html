@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://${MATRIX_HOST}; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="${BRAND}">
+<meta name="theme-color" content="#0b7a75">
+<link rel="manifest" href="/push/manifest.json">
+<link rel="apple-touch-icon" href="/push/icon-180.png">
+<title>${BRAND} 알림</title>
+<style>
+  :root { color-scheme: light dark; --bg:#f6f7f9; --card:#fff; --fg:#17191c; --muted:#5f6670; --accent:#0b7a75; --err:#c62828; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111315; --card:#1c1f23; --fg:#eceef0; --muted:#9aa1a9; --accent:#3fb8b0; --err:#ef6b6b; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  main { max-width:420px; margin:0 auto; padding:max(24px, env(safe-area-inset-top)) 16px 32px; }
+  .card { background:var(--card); border-radius:14px; padding:22px 20px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  h1 { font-size:20px; margin:0 0 6px; }
+  p { margin:0 0 14px; color:var(--muted); }
+  label { display:block; font-size:14px; margin:12px 0 4px; }
+  input { width:100%; font-size:16px; padding:11px 12px; border:1px solid #c9ced4; border-radius:9px; background:transparent; color:inherit; }
+  button { width:100%; margin-top:16px; font-size:16px; font-weight:600; padding:13px; border:0; border-radius:10px; background:var(--accent); color:#fff; }
+  button.secondary { background:transparent; color:var(--muted); border:1px solid #c9ced4; font-weight:500; }
+  button:disabled { opacity:.6; }
+  ol { padding-left:20px; color:var(--muted); margin:0 0 6px; }
+  li { margin-bottom:6px; }
+  .msg { margin-top:14px; font-size:14px; min-height:1em; }
+  .msg.err { color:var(--err); }
+  .ok { font-size:40px; margin-bottom:4px; }
+  a { color:var(--accent); }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="card">
+    <section id="v-loading"><p>확인 중…</p></section>
+
+    <section id="v-install" hidden>
+      <h1>홈 화면에 앱으로 설치하기</h1>
+      <p>아이폰은 홈 화면에 설치한 앱에서만 알림을 받을 수 있습니다.</p>
+      <ol>
+        <li>Safari 아래쪽 <b>공유 버튼</b>(□↑)을 누릅니다</li>
+        <li><b>홈 화면에 추가</b>를 누릅니다</li>
+        <li>홈 화면에 생긴 <b>${BRAND}</b> 아이콘으로 실행합니다</li>
+      </ol>
+      <p>iOS 16.4 이상이 필요합니다. Safari 로 열어 주세요.</p>
+      <button class="secondary" data-go-chat>알림 없이 웹으로 사용</button>
+    </section>
+
+    <section id="v-unsupported" hidden>
+      <h1>이 브라우저는 알림을 지원하지 않습니다</h1>
+      <p>안드로이드는 Chrome, 아이폰은 Safari(iOS 16.4 이상)로 열어 주세요.</p>
+      <button class="secondary" data-go-chat>채팅으로 이동</button>
+    </section>
+
+    <section id="v-login" hidden>
+      <h1>알림 켜기</h1>
+      <p>메신저 아이디와 비밀번호로 한 번 로그인하면, 앱을 닫아도 새 메시지 알림을 받습니다.
+         알림에는 메시지 내용이 표시되지 않습니다.</p>
+      <form id="f-login" autocomplete="on">
+        <label for="i-user">아이디</label>
+        <input id="i-user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required placeholder="hong">
+        <label for="i-pass">비밀번호</label>
+        <input id="i-pass" name="password" type="password" autocomplete="current-password" required>
+        <button id="b-login" type="submit">알림 켜기</button>
+      </form>
+      <button class="secondary" data-go-chat>나중에 하기</button>
+      <div id="m-login" class="msg" role="status"></div>
+    </section>
+
+    <section id="v-on" hidden>
+      <div class="ok">🔔</div>
+      <h1>알림이 켜져 있습니다</h1>
+      <p id="t-on"></p>
+      <button data-go-chat>채팅 열기</button>
+      <button id="b-off" class="secondary">이 기기 알림 끄기</button>
+      <div id="m-on" class="msg" role="status"></div>
+    </section>
+
+    <section id="v-denied" hidden>
+      <h1>알림이 차단되어 있습니다</h1>
+      <p>휴대폰 <b>설정 → 알림 → ${BRAND}</b>(안드로이드는 Chrome 사이트 설정)에서 알림을 허용한 뒤 다시 열어 주세요.</p>
+      <button class="secondary" data-go-chat>채팅으로 이동</button>
+    </section>
+  </div>
+</main>
+<script src="/push/app.js"></script>
+</body>
+</html>

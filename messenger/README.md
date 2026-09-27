@@ -98,11 +98,39 @@ sudo ./scripts/add-user.sh kim --admin     # 관리자
 ```
 
 ## 휴대폰 (아이폰·안드로이드)
+
+### 방법 1 — 웹앱 + 푸시 알림 (앱 스토어 없이)
+휴대폰 브라우저로 **`https://chat.onepin.net/push/`** 를 엽니다.
+
+| | 아이폰 | 안드로이드 |
+|---|---|---|
+| 브라우저 | **Safari** (iOS 16.4 이상) | Chrome |
+| 설치 | 공유(□↑) → **홈 화면에 추가** → 홈 화면 아이콘으로 실행 | 메뉴(⋮) → **홈 화면에 추가** (선택) |
+| 알림 켜기 | 아이디·비밀번호 입력 → **알림 허용** | 같음 |
+
+- 알림을 켠 뒤에는 홈 화면 아이콘을 누르면 바로 채팅(Element 웹)이 열립니다. 채팅 화면에서 **한 번 더 로그인**하세요.
+  (알림용 로그인과 채팅용 로그인은 따로입니다)
+- 알림은 **"새 메시지가 도착했습니다"** 로만 표시됩니다. 누르면 해당 대화방이 열립니다.
+- 끄기: `https://chat.onepin.net/push/` 를 다시 열고 **이 기기 알림 끄기**.
+- 설정 → 보안 → 세션 목록에 **"OnePin 메신저 알림 전용 (iPhone)"** 세션이 보입니다. 암호화 키가 없어 메시지를 읽을 수 없는 알림 전용 세션이며,
+  이 세션을 로그아웃하면 그 기기의 알림이 꺼집니다.
+
+**푸시 알림의 보안**
+```
+Synapse ──(내부망)──▶ Sygnal ──(암호화)──▶ Apple/Google 푸시 서버 ──▶ 휴대폰
+```
+- Synapse 는 메시지 **ID·안 읽은 수만** 보내고 내용·보낸 사람·방 이름은 보내지 않습니다 (`push.include_content: false`, `event_id_only`)
+- 그마저 휴대폰만 풀 수 있게 암호화(Web Push 암호화, RFC 8291)되어 Apple/Google 은 **"몇 시에 이 기기로 알림이 갔다"** 만 압니다
+- Sygnal 은 외부 포트를 열지 않고, Apple·Google·Mozilla·Microsoft 푸시 서버로만 전송합니다
+- 서명 키: `data/sygnal/vapid_private.pem` (백업 대상. 바꾸면 모든 기기에서 알림을 다시 켜야 함)
+
+### 방법 2 — Element X 앱
 1. App Store / Play 스토어에서 **Element X** 설치
 2. "서버 변경" → `onepin.net` 입력 (또는 `matrix.onepin.net`)
 3. 받은 아이디·비밀번호로 로그인
 
 `onepin.net` 만 입력하려면 위의 **Cloudflare Worker** 설정이 필요합니다.
+Element X 의 푸시 알림은 Element 사(matrix.org)의 푸시 서버를 거칩니다. 우리 서버만 쓰려면 방법 1 을 쓰세요.
 
 ## QR 코드
 ```bash
@@ -128,6 +156,7 @@ Element X 버전에 따라 동작이 다를 수 있으니 **아이폰·안드로
 ```bash
 docker compose ps                 # 상태
 docker compose logs -f synapse    # 로그
+docker compose logs -f sygnal     # 푸시 알림 로그
 docker compose pull && docker compose up -d   # 업데이트
 ```
 
@@ -148,7 +177,8 @@ docker compose pull && docker compose up -d   # 업데이트
 | 프로필 | 같은 방에 있는 사용자에게만 공개 |
 | 기록 | 접속 IP 7일, 삭제한 메시지 원본 1일 후 완전 삭제 |
 | 웹 | HTTPS 강제(HSTS), 주소 유출 방지(Referrer), 위치·카메라·마이크 권한 차단 |
-| 서버 포트 | Synapse·Element·DB 는 `127.0.0.1` 에만 열림. 관리자 API(`/_synapse/admin`)는 외부에 열지 않음 |
+| 푸시 알림 | 메시지 ID·안 읽은 수만 암호화해서 전송 (내용·보낸 사람 없음). 자체 푸시 서버(Sygnal) 사용 |
+| 서버 포트 | Synapse·Element·DB 는 `127.0.0.1` 에만 열림, Sygnal 은 내부망 전용. 관리자 API(`/_synapse/admin`)는 외부에 열지 않음 |
 
 **사용자에게 꼭 안내할 것**
 1. 첫 로그인 후 **설정 → 보안 → 보안 키(복구 키) 설정**. 이 키가 없으면 기기를 잃었을 때 이전 대화를 복구할 수 없습니다. 서버 관리자도 복구해 줄 수 없습니다.
