@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# onepin 비공개 메신저 설치 스크립트 (Synapse + Element 웹 + 푸시 알림)
+# onepin 비공개 메신저 설치 스크립트 (Synapse + Element 웹 + 푸시 알림 + 텔레그램 브릿지(선택))
 # 사용법: sudo ./install.sh
 # 여러 번 실행해도 안전합니다 (기존 데이터와 비밀값은 유지).
 set -euo pipefail
@@ -77,6 +77,8 @@ set_default CALL_HOST "call.${SERVER_NAME:-example.com}"
 # 통화 미디어가 들어올 공인 IP. 비어 있으면 자동으로 알아낸다.
 grep -qE '^NODE_IP=.+' .env || sed -i "s|^NODE_IP=.*|NODE_IP=$(curl -s --max-time 8 https://ifconfig.me || hostname -I | awk '{print $1}')|" .env
 grep -qE '^NODE_IP=' .env || echo "NODE_IP=$(curl -s --max-time 8 https://ifconfig.me || hostname -I | awk '{print $1}')" >> .env
+set_default TELEGRAM_BRIDGE off
+set_default TELEGRAM_PUPPETING off
 chmod 600 .env
 set -a; . ./.env; set +a
 
@@ -104,9 +106,62 @@ if [ ! -f "data/synapse/${SERVER_NAME}.signing.key" ]; then
     -e SYNAPSE_SERVER_NAME="$SERVER_NAME" -e SYNAPSE_REPORT_STATS=no \
     synapse generate
 fi
+HS_BEFORE="$(sha256sum data/synapse/homeserver.yaml 2>/dev/null || true)"
 render templates/homeserver.yaml data/synapse/homeserver.yaml
+
+# ── 4-0. 텔레그램 브릿지 (선택) ────────────────────────────────
+set_env() {  # .env 값 바꾸기/추가
+  if grep -qE "^${1}=" .env; then sed -i "s|^${1}=.*|${1}=${2}|" .env; else echo "${1}=${2}" >> .env; fi
+}
+if [ "${TELEGRAM_BRIDGE:-off}" = on ]; then
+  info "텔레그램 브릿지 설정"
+  for v in TELEGRAM_API_ID TELEGRAM_API_HASH TELEGRAM_BOT_TOKEN; do
+    [ -n "${!v:-}" ] || die ".env 의 $v 값이 비어 있습니다 (README '텔레그램 브릿지' 참고)."
+  done
+  [[ "$TELEGRAM_API_ID" =~ ^[0-9]+$ ]] || die "TELEGRAM_API_ID 는 숫자여야 합니다."
+  set_env COMPOSE_PROFILES telegram
+  export COMPOSE_PROFILES=telegram
+  mkdir -p data/telegram data/synapse/appservices
+
+  # 브릿지 전용 DB (같은 PostgreSQL 안의 telegram DB)
+  docker compose up -d --wait postgres
+  docker compose exec -T postgres psql -U synapse -d synapse -tAc \
+    "SELECT 1 FROM pg_database WHERE datname='telegram'" | grep -q 1 \
+    || docker compose exec -T postgres psql -U synapse -d synapse -c "CREATE DATABASE telegram" >/dev/null
+
+  # 첫 실행: 공식 이미지가 예제 설정을 만들고 종료합니다
+  [ -f data/telegram/config.yaml ] || docker compose run --rm --no-deps mautrix-telegram >/dev/null 2>&1 || true
+  [ -f data/telegram/config.yaml ] || die "브릿지 설정 파일을 만들지 못했습니다: docker compose run --rm --no-deps mautrix-telegram"
+
+  docker compose run --rm --no-deps -T --entrypoint python3 \
+    -e SERVER_NAME -e ADMIN_USER -e POSTGRES_PASSWORD -e TELEGRAM_PUPPETING \
+    -e TELEGRAM_API_ID -e TELEGRAM_API_HASH -e TELEGRAM_BOT_TOKEN \
+    mautrix-telegram - < templates/telegram/configure.py
+
+  # 두 번째 실행: Synapse 등록 파일(registration.yaml)을 만들고 종료합니다
+  [ -f data/telegram/registration.yaml ] || docker compose run --rm --no-deps mautrix-telegram >/dev/null 2>&1 || true
+  [ -f data/telegram/registration.yaml ] || die "브릿지 등록 파일을 만들지 못했습니다: docker compose logs mautrix-telegram"
+
+  cp data/telegram/registration.yaml data/synapse/appservices/telegram.yaml
+  # 기존 앱서비스 목록(통화용 livekit 등)에 항목만 추가. 같은 키를 또 쓰면 앞의 목록이 사라진다
+  if grep -q '^app_service_config_files:' data/synapse/homeserver.yaml; then
+    sed -i '/^app_service_config_files:/a\  - /data/appservices/telegram.yaml' data/synapse/homeserver.yaml
+  else
+    printf '\napp_service_config_files:\n  - /data/appservices/telegram.yaml\n' >> data/synapse/homeserver.yaml
+  fi
+  echo "텔레그램 브릿지 연결 완료"
+else
+  if grep -qE '^COMPOSE_PROFILES=.*telegram' .env; then
+    info "텔레그램 브릿지 끄기"
+    docker compose stop mautrix-telegram >/dev/null 2>&1 || true
+    set_env COMPOSE_PROFILES ""
+  fi
+  export COMPOSE_PROFILES=
+fi
+
 chown -R 991:991 data/synapse   # Synapse 컨테이너 사용자
 chmod 600 data/synapse/homeserver.yaml
+HS_AFTER="$(sha256sum data/synapse/homeserver.yaml)"
 
 render templates/element-config.json data/element/config.json
 render templates/well-known-client.json data/well-known-client.json
@@ -164,7 +219,11 @@ cp templates/push/app.js templates/push/sw.js data/push/
 # ── 5. 실행 ──────────────────────────────────────────────────
 info "컨테이너 실행"
 docker compose pull -q
-docker compose up -d
+docker compose up -d --remove-orphans
+# 설정이 바뀌었으면 Synapse 재시작 (처음 설치 때는 불필요)
+if [ -n "$HS_BEFORE" ] && [ "$HS_BEFORE" != "$HS_AFTER" ]; then
+  docker compose restart synapse
+fi
 
 info "Synapse 시작 대기"
 for i in $(seq 1 60); do
@@ -186,6 +245,11 @@ for sz in 180 512; do
   make_icon "$sz" "data/push/icon-$sz.png" || warn "홈 화면 아이콘(icon-$sz.png)을 만들지 못했습니다."
 done
 docker compose ps --status running sygnal -q | grep -q . || warn "푸시 서버(Sygnal)가 실행되지 않았습니다: docker compose logs sygnal"
+if [ "${TELEGRAM_BRIDGE:-off}" = on ]; then
+  sleep 5
+  docker compose ps --status running mautrix-telegram -q | grep -q . \
+    || warn "텔레그램 브릿지가 실행되지 않았습니다: docker compose logs mautrix-telegram"
+fi
 
 # ── 6. 웹서버(Nginx/Apache) 연결 ──────────────────────────────
 # 인증서: certs/origin.pem + certs/origin.key (Cloudflare 원본 인증서) 가 있으면 그것을 사용,
@@ -308,6 +372,7 @@ cat <<MSG
   서버 주소:   https://${MATRIX_HOST}
   아이디 형식: @아이디:${SERVER_NAME}
 
+  텔레그램 브릿지: ${TELEGRAM_BRIDGE:-off}  (사용법: README "텔레그램 브릿지")
   사용자 추가: sudo ./scripts/add-user.sh hong
   접속 QR 코드: sudo ./scripts/qr.sh
 

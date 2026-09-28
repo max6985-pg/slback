@@ -1,4 +1,4 @@
-# onepin 비공개 메신저: Synapse + PostgreSQL + Element 웹 + Sygnal(푸시)
+# onepin 비공개 메신저: Synapse + PostgreSQL + Element 웹 + Sygnal(푸시) [+ 텔레그램 브릿지]
 # 모든 포트는 127.0.0.1 에만 열리고, 외부 접속은 기존 Nginx/Apache 가 넘겨줍니다.
 # Sygnal 은 포트를 열지 않고 Synapse 와 내부 네트워크(push)로만 연결됩니다.
 name: onepin-messenger
@@ -47,6 +47,17 @@ services:
     networks:
       push:
         ipv4_address: ${SYGNAL_IP:-10.250.250.4}
+
+  # 텔레그램 브릿지 (선택). .env 의 TELEGRAM_BRIDGE=on 이면 install.sh 가 COMPOSE_PROFILES=telegram 으로 켭니다
+  mautrix-telegram:
+    image: ${TELEGRAM_BRIDGE_IMAGE:-dock.mau.dev/mautrix/telegram:v0.15.2}
+    profiles: ["telegram"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./data/telegram:/data
 
   element:
     image: vectorim/element-web:latest

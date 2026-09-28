@@ -148,6 +148,45 @@ Element X 버전에 따라 동작이 다를 수 있으니 **아이폰·안드로
 > 카메라로 찍어 **로그인까지 자동으로 되는 기능**(Element X 의 "QR 로그인")은
 > 별도 인증 서버(MAS)가 필요해서 이 기본 설치에는 포함되지 않습니다.
 
+## 텔레그램 브릿지 (선택)
+텔레그램 단체방과 우리 메신저 방을 연결해서, 양쪽 메시지가 서로 전달되게 합니다.
+기본은 **릴레이 봇 방식**입니다. 텔레그램 단체방에 우리 봇을 넣으면 봇이 메시지를 옮겨 줍니다.
+개인 텔레그램 계정으로 로그인할 필요가 없습니다.
+
+### 1. 텔레그램에서 준비
+1. **API 정보**: https://my.telegram.org 로그인 → **API development tools** → 앱 생성 → `api_id`, `api_hash` 복사
+2. **봇 만들기**: 텔레그램에서 `@BotFather` → `/newbot` → 봇 토큰 복사
+3. **봇이 단체방 메시지를 읽도록 설정**: `@BotFather` → `/setprivacy` → 봇 선택 → **Disable**
+
+### 2. 서버에서 켜기
+`.env` 에 입력합니다 (채팅·깃에 올리지 마세요).
+```bash
+TELEGRAM_BRIDGE=on
+TELEGRAM_API_ID=1234567
+TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+```
+그다음 `sudo ./install.sh` 를 다시 실행합니다. 브릿지 설치와 Synapse 연결까지 자동으로 합니다.
+
+### 3. 단체방 연결
+1. 텔레그램 단체방에 봇을 **초대하고 관리자로 지정**합니다.
+2. 텔레그램 단체방에서 `/portal` 을 입력하면 우리 메신저에 연결된 방이 만들어집니다.
+3. 텔레그램 단체방에서 `/invite @admin:onepin.net` 을 입력해 우리 사용자를 초대합니다.
+4. Element 에서 초대를 수락하면 끝입니다.
+
+- 텔레그램 사람은 Element 에서 `이름 (Telegram)` 으로 보입니다.
+- 우리 쪽 메시지는 텔레그램에 봇 이름으로 `이름: 메시지` 형태로 전달됩니다.
+
+### 끄기
+`.env` 에서 `TELEGRAM_BRIDGE=off` 로 바꾸고 `sudo ./install.sh` 를 실행합니다.
+
+### ⚠ 보안 주의
+- **연결된 방의 메시지는 텔레그램 서버로 넘어갑니다.** 종단간 암호화의 보호를 받지 못합니다.
+  민감한 업무 대화는 **브릿지하지 않은 방**에서만 하세요.
+- 공지 전달용 단체방처럼 **용도를 정해서 필요한 방만** 연결하세요.
+- `TELEGRAM_PUPPETING=on` 을 켜면 사용자가 자기 텔레그램 계정으로 로그인할 수 있습니다.
+  이때 텔레그램 **인증코드**를 입력하게 되므로, 사칭 사기와 헷갈리지 않도록 **off 를 권장**합니다.
+
 ## 로고·이름 바꾸기
 - 이름: `.env` 의 `BRAND` 수정 후 `sudo ./install.sh`
 - 로고: `element/custom/logo.svg` 파일 교체 후 `docker compose restart element`
@@ -156,6 +195,7 @@ Element X 버전에 따라 동작이 다를 수 있으니 **아이폰·안드로
 ```bash
 docker compose ps                 # 상태
 docker compose logs -f synapse    # 로그
+docker compose logs -f mautrix-telegram   # 텔레그램 브릿지 로그
 docker compose logs -f sygnal     # 푸시 알림 로그
 docker compose pull && docker compose up -d   # 업데이트
 ```
