@@ -114,8 +114,33 @@ cp templates/push/app.js templates/push/sw.js data/push/
 
 # ── 5. 실행 ──────────────────────────────────────────────────
 info "컨테이너 실행"
-docker compose pull -q
+docker compose pull -q || warn "이미지 업데이트를 받지 못했습니다 (Docker Hub 제한 등). 이미 받은 이미지로 계속합니다."
+
+# 서버에서 IPv6 가 꺼져 있으면 Element 웹의 nginx 가 [::]:80 을 열지 못해 계속 재시작됨
+# → IPv4 만 쓰는 설정으로 덮어쓰기 (docker-compose.override.yml 은 docker compose 가 자동으로 읽음)
+if [ ! -e /proc/net/if_inet6 ]; then
+  warn "이 서버는 IPv6 가 꺼져 있어 채팅 화면(Element)을 IPv4 전용으로 실행합니다."
+  docker run --rm --entrypoint cat vectorim/element-web:latest /etc/nginx/templates/default.conf.template \
+    | sed '/listen[[:space:]]*\[::\]/d' > data/element/default.conf.template
+  cat > docker-compose.override.yml <<'OVR'
+# install.sh 가 생성 (서버 IPv6 꺼짐): Element 웹을 IPv4 전용으로 실행
+services:
+  element:
+    volumes:
+      - ./data/element/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+OVR
+else
+  rm -f docker-compose.override.yml data/element/default.conf.template
+fi
+
 docker compose up -d
+
+# 모든 컨테이너가 떠 있는지 확인 (재시작 반복 감지)
+sleep 5
+for svc in postgres synapse sygnal element; do
+  docker compose ps --status running -q "$svc" | grep -q . \
+    || warn "$svc 컨테이너가 실행 중이 아닙니다: docker compose logs $svc"
+done
 
 info "Synapse 시작 대기"
 for i in $(seq 1 60); do
@@ -136,7 +161,6 @@ for sz in 180 512; do
   [ -s "data/push/icon-$sz.png" ] && [ "data/push/icon-$sz.png" -nt element/custom/logo.svg ] && continue
   make_icon "$sz" "data/push/icon-$sz.png" || warn "홈 화면 아이콘(icon-$sz.png)을 만들지 못했습니다."
 done
-docker compose ps --status running sygnal -q | grep -q . || warn "푸시 서버(Sygnal)가 실행되지 않았습니다: docker compose logs sygnal"
 
 # ── 6. 웹서버(Nginx/Apache) 연결 ──────────────────────────────
 # 인증서: certs/origin.pem + certs/origin.key (Cloudflare 원본 인증서) 가 있으면 그것을 사용,

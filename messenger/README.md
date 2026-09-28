@@ -86,6 +86,11 @@ sudo ./install.sh
 5. HTTPS 적용 (`certs/` 의 Cloudflare 원본 인증서, 없으면 Let's Encrypt 발급)
 6. 관리자 계정 생성
 
+설치가 끝나면 **점검 스크립트**로 한 번에 확인하세요. 문제가 있으면 해결 방법을 알려 줍니다.
+```bash
+sudo ./scripts/check.sh
+```
+
 > ⚠ `SERVER_NAME` 은 사용자 아이디(`@hong:onepin.net`)의 일부라서 **설치 후에는 바꿀 수 없습니다.**
 
 ## 사용자 추가
@@ -154,6 +159,7 @@ Element X 버전에 따라 동작이 다를 수 있으니 **아이폰·안드로
 
 ## 운영
 ```bash
+sudo ./scripts/check.sh           # 전체 점검 (컨테이너·주소·인증서·푸시·보안)
 docker compose ps                 # 상태
 docker compose logs -f synapse    # 로그
 docker compose logs -f sygnal     # 푸시 알림 로그
