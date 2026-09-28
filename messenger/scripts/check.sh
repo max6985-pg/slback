@@ -14,7 +14,7 @@ head_() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 http_code() { curl -s -o /dev/null -m 10 -w '%{http_code}' "$@" 2>/dev/null; }
 
 head_ "1. 컨테이너"
-for svc in postgres synapse sygnal element; do
+for svc in postgres synapse sygnal element admin livekit lk-jwt element-call; do
   if docker compose ps --status running -q "$svc" 2>/dev/null | grep -q .; then ok "$svc 실행 중"
   else bad "$svc 가 실행 중이 아닙니다" "docker compose logs --tail 30 $svc 결과를 확인하세요"; fi
 done

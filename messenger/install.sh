@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# onepin 비공개 메신저 설치 스크립트 (Synapse + Element 웹 + 푸시 알림)
+# onepin 비공개 메신저 설치 스크립트 (Synapse + Element 웹 + 푸시 알림 + 텔레그램 브릿지(선택))
 # 사용법: sudo ./install.sh
 # 여러 번 실행해도 안전합니다 (기존 데이터와 비밀값은 유지).
 set -euo pipefail
@@ -58,18 +58,36 @@ if ! command -v docker >/dev/null; then
 fi
 docker compose version >/dev/null 2>&1 || die "docker compose 플러그인이 없습니다. Docker 를 최신 버전으로 업데이트하세요."
 
-for k in POSTGRES_PASSWORD REGISTRATION_SHARED_SECRET MACAROON_SECRET_KEY FORM_SECRET; do set_secret "$k"; done
+for k in POSTGRES_PASSWORD REGISTRATION_SHARED_SECRET MACAROON_SECRET_KEY FORM_SECRET LK_AS_TOKEN LK_HS_TOKEN LK_SECRET; do set_secret "$k"; done
+# LiveKit API 키는 접두사가 있어야 한다
+if ! grep -qE '^LK_KEY=.+' .env; then
+  if grep -qE '^LK_KEY=' .env; then sed -i "s|^LK_KEY=.*|LK_KEY=API$(openssl rand -hex 6)|" .env
+  else echo "LK_KEY=API$(openssl rand -hex 6)" >> .env; fi
+fi
 set_default PUSH_APP_ID net.onepin.push
 set_default PUSH_SUBNET 10.250.250.0/29
 set_default SYGNAL_IP 10.250.250.4
+set_default ADMIN_PORT 8090
+set_default JWT_PORT 8070
+set_default CALL_PORT 8092
+set_default LK_JWT_IP 10.250.250.5
+set_default LK_UDP_START 50100
+set_default LK_UDP_END 50200
+set_default CALL_HOST "call.${SERVER_NAME:-example.com}"
+# 통화 미디어가 들어올 공인 IP. 비어 있으면 자동으로 알아낸다.
+grep -qE '^NODE_IP=.+' .env || sed -i "s|^NODE_IP=.*|NODE_IP=$(curl -s --max-time 8 https://ifconfig.me || hostname -I | awk '{print $1}')|" .env
+grep -qE '^NODE_IP=' .env || echo "NODE_IP=$(curl -s --max-time 8 https://ifconfig.me || hostname -I | awk '{print $1}')" >> .env
+set_default TELEGRAM_BRIDGE off
+set_default TELEGRAM_PUPPETING off
 chmod 600 .env
 set -a; . ./.env; set +a
 
-for v in SERVER_NAME MATRIX_HOST CHAT_HOST BRAND ADMIN_EMAIL ADMIN_USER SYNAPSE_PORT ELEMENT_PORT MAX_UPLOAD_SIZE PUSH_APP_ID PUSH_SUBNET SYGNAL_IP; do
+for v in SERVER_NAME MATRIX_HOST CHAT_HOST CALL_HOST BRAND ADMIN_EMAIL ADMIN_USER SYNAPSE_PORT ELEMENT_PORT ADMIN_PORT JWT_PORT CALL_PORT MAX_UPLOAD_SIZE PUSH_APP_ID PUSH_SUBNET SYGNAL_IP LK_KEY LK_SECRET LK_AS_TOKEN LK_HS_TOKEN LK_JWT_IP LK_UDP_START LK_UDP_END NODE_IP; do
   [ -n "${!v:-}" ] || die ".env 의 $v 값이 비어 있습니다."
 done
 
-VARS='${SERVER_NAME} ${MATRIX_HOST} ${CHAT_HOST} ${BRAND} ${ADMIN_EMAIL} ${SYNAPSE_PORT} ${ELEMENT_PORT} ${MAX_UPLOAD_SIZE} ${POSTGRES_PASSWORD} ${REGISTRATION_SHARED_SECRET} ${MACAROON_SECRET_KEY} ${FORM_SECRET} ${CERT_DIR} ${PUSH_APP_ID} ${SYGNAL_IP} ${VAPID_PUBLIC_KEY}'
+VARS='${SERVER_NAME} ${MATRIX_HOST} ${CHAT_HOST} ${CALL_HOST} ${BRAND} ${ADMIN_EMAIL} ${SYNAPSE_PORT} ${ELEMENT_PORT} ${ADMIN_PORT} ${JWT_PORT} ${CALL_PORT} ${MAX_UPLOAD_SIZE} ${POSTGRES_PASSWORD} ${REGISTRATION_SHARED_SECRET} ${MACAROON_SECRET_KEY} ${FORM_SECRET} ${CERT_DIR} ${WELLKNOWN_DIR} ${PUSH_APP_ID} ${SYGNAL_IP} ${VAPID_PUBLIC_KEY} ${LK_KEY} ${LK_SECRET} ${LK_AS_TOKEN} ${LK_HS_TOKEN} ${LK_JWT_IP} ${LK_UDP_START} ${LK_UDP_END} ${NODE_IP}'
+WELLKNOWN_DIR="$DIR/data/well-known"; export WELLKNOWN_DIR
 render() { envsubst "$VARS" < "$1" > "$2"; }
 
 # ── 3. 포트 충돌 확인 ─────────────────────────────────────────
@@ -88,12 +106,98 @@ if [ ! -f "data/synapse/${SERVER_NAME}.signing.key" ]; then
     -e SYNAPSE_SERVER_NAME="$SERVER_NAME" -e SYNAPSE_REPORT_STATS=no \
     synapse generate
 fi
+HS_BEFORE="$(sha256sum data/synapse/homeserver.yaml 2>/dev/null || true)"
 render templates/homeserver.yaml data/synapse/homeserver.yaml
+
+# ── 4-0. 텔레그램 브릿지 (선택) ────────────────────────────────
+set_env() {  # .env 값 바꾸기/추가
+  if grep -qE "^${1}=" .env; then sed -i "s|^${1}=.*|${1}=${2}|" .env; else echo "${1}=${2}" >> .env; fi
+}
+if [ "${TELEGRAM_BRIDGE:-off}" = on ]; then
+  info "텔레그램 브릿지 설정"
+  for v in TELEGRAM_API_ID TELEGRAM_API_HASH TELEGRAM_BOT_TOKEN; do
+    [ -n "${!v:-}" ] || die ".env 의 $v 값이 비어 있습니다 (README '텔레그램 브릿지' 참고)."
+  done
+  [[ "$TELEGRAM_API_ID" =~ ^[0-9]+$ ]] || die "TELEGRAM_API_ID 는 숫자여야 합니다."
+  set_env COMPOSE_PROFILES telegram
+  export COMPOSE_PROFILES=telegram
+  mkdir -p data/telegram data/synapse/appservices
+
+  # 브릿지 전용 DB (같은 PostgreSQL 안의 telegram DB)
+  docker compose up -d --wait postgres
+  docker compose exec -T postgres psql -U synapse -d synapse -tAc \
+    "SELECT 1 FROM pg_database WHERE datname='telegram'" | grep -q 1 \
+    || docker compose exec -T postgres psql -U synapse -d synapse -c "CREATE DATABASE telegram" >/dev/null
+
+  # 첫 실행: 공식 이미지가 예제 설정을 만들고 종료합니다
+  [ -f data/telegram/config.yaml ] || docker compose run --rm --no-deps mautrix-telegram >/dev/null 2>&1 || true
+  [ -f data/telegram/config.yaml ] || die "브릿지 설정 파일을 만들지 못했습니다: docker compose run --rm --no-deps mautrix-telegram"
+
+  docker compose run --rm --no-deps -T --entrypoint python3 \
+    -e SERVER_NAME -e ADMIN_USER -e POSTGRES_PASSWORD -e TELEGRAM_PUPPETING \
+    -e TELEGRAM_API_ID -e TELEGRAM_API_HASH -e TELEGRAM_BOT_TOKEN \
+    mautrix-telegram - < templates/telegram/configure.py
+
+  # 두 번째 실행: Synapse 등록 파일(registration.yaml)을 만들고 종료합니다
+  [ -f data/telegram/registration.yaml ] || docker compose run --rm --no-deps mautrix-telegram >/dev/null 2>&1 || true
+  [ -f data/telegram/registration.yaml ] || die "브릿지 등록 파일을 만들지 못했습니다: docker compose logs mautrix-telegram"
+
+  cp data/telegram/registration.yaml data/synapse/appservices/telegram.yaml
+  # 기존 앱서비스 목록(통화용 livekit 등)에 항목만 추가. 같은 키를 또 쓰면 앞의 목록이 사라진다
+  if grep -q '^app_service_config_files:' data/synapse/homeserver.yaml; then
+    sed -i '/^app_service_config_files:/a\  - /data/appservices/telegram.yaml' data/synapse/homeserver.yaml
+  else
+    printf '\napp_service_config_files:\n  - /data/appservices/telegram.yaml\n' >> data/synapse/homeserver.yaml
+  fi
+  echo "텔레그램 브릿지 연결 완료"
+else
+  if grep -qE '^COMPOSE_PROFILES=.*telegram' .env; then
+    info "텔레그램 브릿지 끄기"
+    docker compose stop mautrix-telegram >/dev/null 2>&1 || true
+    set_env COMPOSE_PROFILES ""
+  fi
+  export COMPOSE_PROFILES=
+fi
+
 chown -R 991:991 data/synapse   # Synapse 컨테이너 사용자
 chmod 600 data/synapse/homeserver.yaml
+HS_AFTER="$(sha256sum data/synapse/homeserver.yaml)"
 
 render templates/element-config.json data/element/config.json
 render templates/well-known-client.json data/well-known-client.json
+render templates/admin-config.json data/admin-config.json
+
+# ── 4-2. 통화(음성·영상) ──────────────────────────────────────
+info "통화 설정"
+mkdir -p data/livekit data/element-call "$WELLKNOWN_DIR"
+render templates/livekit.yaml            data/livekit/livekit.yaml
+render templates/element-call-config.json data/element-call/config.json
+render templates/well-known-server.json   "$WELLKNOWN_DIR/server"
+render templates/livekit-appservice.yaml  data/synapse/livekit-appservice.yaml
+# Synapse 가 읽어야 하므로 소유자를 맞춘다. root 소유 600 이면 Synapse 가 기동에 실패한다.
+chown 991:991 data/synapse/livekit-appservice.yaml
+chmod 640 data/synapse/livekit-appservice.yaml
+chmod 600 data/livekit/livekit.yaml
+
+# 통화 미디어용 포트 열기 (UDP 범위 + TCP 대체 통로)
+open_port() {  # 프로토콜 포트
+  if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
+    ufw allow "$2/$1" >/dev/null 2>&1
+  elif command -v iptables >/dev/null; then
+    local chain=INPUT
+    iptables -L RH-Firewall-1-INPUT -n >/dev/null 2>&1 && chain=RH-Firewall-1-INPUT
+    iptables -C "$chain" -p "$1" -m state --state NEW -m "$1" --dport "$2" -j ACCEPT 2>/dev/null && return
+    # REJECT/DROP 규칙 "앞"에 넣어야 한다. iptables -S 의 줄번호는 -N 줄 때문에 어긋나므로
+    # --line-numbers 로 실제 위치를 구한다.
+    local n; n=$(iptables -L "$chain" --line-numbers -n | awk '$2=="REJECT"||$2=="DROP"{print $1; exit}')
+    if [ -n "$n" ]; then iptables -I "$chain" "$n" -p "$1" -m state --state NEW -m "$1" --dport "$2" -j ACCEPT
+    else iptables -A "$chain" -p "$1" -m state --state NEW -m "$1" --dport "$2" -j ACCEPT; fi
+  fi
+}
+open_port udp "${LK_UDP_START}:${LK_UDP_END}"
+open_port tcp 7881
+command -v netfilter-persistent >/dev/null && netfilter-persistent save >/dev/null 2>&1 || \
+  { [ -d /etc/iptables ] && iptables-save > /etc/iptables/rules.v4 2>/dev/null; } || true
 
 # ── 4-1. 푸시 알림 (Sygnal + 알림 켜기 페이지 /push/) ──────────
 info "푸시 알림 설정"
@@ -116,28 +220,35 @@ cp templates/push/app.js templates/push/sw.js data/push/
 info "컨테이너 실행"
 docker compose pull -q || warn "이미지 업데이트를 받지 못했습니다 (Docker Hub 제한 등). 이미 받은 이미지로 계속합니다."
 
-# 서버에서 IPv6 가 꺼져 있으면 Element 웹의 nginx 가 [::]:80 을 열지 못해 계속 재시작됨
-# → IPv4 만 쓰는 설정으로 덮어쓰기 (docker-compose.override.yml 은 docker compose 가 자동으로 읽음)
+# 서버에서 IPv6 가 꺼져 있으면 Element 웹(nginx, [::]:80)과 관리자 화면(static-web-server, [::]:8080)이
+# 주소를 열지 못해 계속 재시작됨 → IPv4 만 쓰도록 덮어쓰기 (docker-compose.override.yml 은 자동으로 읽힘)
 if [ ! -e /proc/net/if_inet6 ]; then
-  warn "이 서버는 IPv6 가 꺼져 있어 채팅 화면(Element)을 IPv4 전용으로 실행합니다."
+  warn "이 서버는 IPv6 가 꺼져 있어 채팅·관리자 화면을 IPv4 전용으로 실행합니다."
   docker run --rm --entrypoint cat vectorim/element-web:latest /etc/nginx/templates/default.conf.template \
     | sed '/listen[[:space:]]*\[::\]/d' > data/element/default.conf.template
   cat > docker-compose.override.yml <<'OVR'
-# install.sh 가 생성 (서버 IPv6 꺼짐): Element 웹을 IPv4 전용으로 실행
+# install.sh 가 생성 (서버 IPv6 꺼짐): 웹 화면들을 IPv4 전용으로 실행
 services:
   element:
     volumes:
       - ./data/element/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+  admin:
+    environment:
+      SERVER_HOST: 0.0.0.0
 OVR
 else
   rm -f docker-compose.override.yml data/element/default.conf.template
 fi
 
-docker compose up -d
+docker compose up -d --remove-orphans
+# 설정이 바뀌었으면 Synapse 재시작 (처음 설치 때는 불필요)
+if [ -n "$HS_BEFORE" ] && [ "$HS_BEFORE" != "$HS_AFTER" ]; then
+  docker compose restart synapse
+fi
 
 # 모든 컨테이너가 떠 있는지 확인 (재시작 반복 감지)
 sleep 5
-for svc in postgres synapse sygnal element; do
+for svc in postgres synapse sygnal element admin livekit lk-jwt element-call; do
   docker compose ps --status running -q "$svc" | grep -q . \
     || warn "$svc 컨테이너가 실행 중이 아닙니다: docker compose logs $svc"
 done
@@ -161,6 +272,11 @@ for sz in 180 512; do
   [ -s "data/push/icon-$sz.png" ] && [ "data/push/icon-$sz.png" -nt element/custom/logo.svg ] && continue
   make_icon "$sz" "data/push/icon-$sz.png" || warn "홈 화면 아이콘(icon-$sz.png)을 만들지 못했습니다."
 done
+if [ "${TELEGRAM_BRIDGE:-off}" = on ]; then
+  sleep 5
+  docker compose ps --status running mautrix-telegram -q | grep -q . \
+    || warn "텔레그램 브릿지가 실행되지 않았습니다: docker compose logs mautrix-telegram"
+fi
 
 # ── 6. 웹서버(Nginx/Apache) 연결 ──────────────────────────────
 # 인증서: certs/origin.pem + certs/origin.key (Cloudflare 원본 인증서) 가 있으면 그것을 사용,
@@ -199,7 +315,7 @@ case "$WEB" in
     systemctl reload nginx
     ;;
   apache2)
-    a2enmod -q proxy proxy_http headers ssl rewrite
+    a2enmod -q proxy proxy_http proxy_wstunnel headers ssl rewrite   # wstunnel: 통화 신호(웹소켓)
     CONF=/etc/apache2/sites-available/onepin-messenger.conf
     render "templates/webserver/apache${SUFFIX}.conf" "$CONF"
     a2ensite -q onepin-messenger
@@ -254,8 +370,10 @@ else
   install_pkgs certbot "python3-certbot-$CB_INSTALLER"
   CB_AUTH=(--authenticator "$CB_INSTALLER")
 fi
-if certbot "${CB_AUTH[@]}" --installer "$CB_INSTALLER" --non-interactive --agree-tos --redirect \
-     -m "$ADMIN_EMAIL" -d "$MATRIX_HOST" -d "$CHAT_HOST"; then
+if [ "${SKIP_CERTBOT:-0}" = 1 ]; then
+  warn "SKIP_CERTBOT=1 — 인증서 발급을 건너뜁니다 (Cloudflare 가 HTTPS 를 처리하는 구성)"
+elif certbot "${CB_AUTH[@]}" --installer "$CB_INSTALLER" --non-interactive --agree-tos --redirect \
+     -m "$ADMIN_EMAIL" -d "$MATRIX_HOST" -d "$CHAT_HOST" -d "$CALL_HOST"; then
   echo "인증서 발급 완료"
   [ -n "${CF_API_TOKEN:-}" ] && echo "Cloudflare SSL/TLS 모드를 'Full (strict)' 로 설정하세요 (Flexible 이면 무한 리디렉션)."
 else
@@ -281,6 +399,7 @@ cat <<MSG
   서버 주소:   https://${MATRIX_HOST}
   아이디 형식: @아이디:${SERVER_NAME}
 
+  텔레그램 브릿지: ${TELEGRAM_BRIDGE:-off}  (사용법: README "텔레그램 브릿지")
   사용자 추가: sudo ./scripts/add-user.sh hong
   접속 QR 코드: sudo ./scripts/qr.sh
 

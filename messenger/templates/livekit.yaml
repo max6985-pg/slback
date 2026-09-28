@@ -1,0 +1,24 @@
+# 통화 중계 서버(LiveKit SFU)
+# 신호(웹소켓)는 웹서버를 거쳐 들어오고, 음성·영상은 UDP 로 직접 오간다.
+port: 7880
+bind_addresses:
+  - "127.0.0.1"          # 신호용 웹소켓은 웹서버만 접근 (외부 직접 노출 안 함)
+rtc:
+  tcp_port: 7881          # UDP 가 막힌 망에서 쓰는 대체 통로
+  port_range_start: ${LK_UDP_START}
+  port_range_end: ${LK_UDP_END}
+  use_external_ip: false
+  node_ip: ${NODE_IP}     # 공인 IP 를 명시하지 않으면 도커 브리지 IP 를 골라 통화가 안 붙는다
+turn:
+  enabled: false
+keys:
+  ${LK_KEY}: ${LK_SECRET}
+room:
+  auto_create: false      # 인증 서비스가 허락한 방만 생성 (무단 사용 차단)
+  empty_timeout: 300
+webhook:
+  api_key: ${LK_KEY}
+  urls:
+    - http://127.0.0.1:${JWT_PORT}/sfu_webhook   # 서버 안에서만 오감
+logging:
+  level: info

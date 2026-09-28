@@ -153,6 +153,45 @@ Element X 버전에 따라 동작이 다를 수 있으니 **아이폰·안드로
 > 카메라로 찍어 **로그인까지 자동으로 되는 기능**(Element X 의 "QR 로그인")은
 > 별도 인증 서버(MAS)가 필요해서 이 기본 설치에는 포함되지 않습니다.
 
+## 텔레그램 브릿지 (선택)
+텔레그램 단체방과 우리 메신저 방을 연결해서, 양쪽 메시지가 서로 전달되게 합니다.
+기본은 **릴레이 봇 방식**입니다. 텔레그램 단체방에 우리 봇을 넣으면 봇이 메시지를 옮겨 줍니다.
+개인 텔레그램 계정으로 로그인할 필요가 없습니다.
+
+### 1. 텔레그램에서 준비
+1. **API 정보**: https://my.telegram.org 로그인 → **API development tools** → 앱 생성 → `api_id`, `api_hash` 복사
+2. **봇 만들기**: 텔레그램에서 `@BotFather` → `/newbot` → 봇 토큰 복사
+3. **봇이 단체방 메시지를 읽도록 설정**: `@BotFather` → `/setprivacy` → 봇 선택 → **Disable**
+
+### 2. 서버에서 켜기
+`.env` 에 입력합니다 (채팅·깃에 올리지 마세요).
+```bash
+TELEGRAM_BRIDGE=on
+TELEGRAM_API_ID=1234567
+TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF...
+```
+그다음 `sudo ./install.sh` 를 다시 실행합니다. 브릿지 설치와 Synapse 연결까지 자동으로 합니다.
+
+### 3. 단체방 연결
+1. 텔레그램 단체방에 봇을 **초대하고 관리자로 지정**합니다.
+2. 텔레그램 단체방에서 `/portal` 을 입력하면 우리 메신저에 연결된 방이 만들어집니다.
+3. 텔레그램 단체방에서 `/invite @admin:onepin.net` 을 입력해 우리 사용자를 초대합니다.
+4. Element 에서 초대를 수락하면 끝입니다.
+
+- 텔레그램 사람은 Element 에서 `이름 (Telegram)` 으로 보입니다.
+- 우리 쪽 메시지는 텔레그램에 봇 이름으로 `이름: 메시지` 형태로 전달됩니다.
+
+### 끄기
+`.env` 에서 `TELEGRAM_BRIDGE=off` 로 바꾸고 `sudo ./install.sh` 를 실행합니다.
+
+### ⚠ 보안 주의
+- **연결된 방의 메시지는 텔레그램 서버로 넘어갑니다.** 종단간 암호화의 보호를 받지 못합니다.
+  민감한 업무 대화는 **브릿지하지 않은 방**에서만 하세요.
+- 공지 전달용 단체방처럼 **용도를 정해서 필요한 방만** 연결하세요.
+- `TELEGRAM_PUPPETING=on` 을 켜면 사용자가 자기 텔레그램 계정으로 로그인할 수 있습니다.
+  이때 텔레그램 **인증코드**를 입력하게 되므로, 사칭 사기와 헷갈리지 않도록 **off 를 권장**합니다.
+
 ## 로고·이름 바꾸기
 - 이름: `.env` 의 `BRAND` 수정 후 `sudo ./install.sh`
 - 로고: `element/custom/logo.svg` 파일 교체 후 `docker compose restart element`
@@ -162,6 +201,7 @@ Element X 버전에 따라 동작이 다를 수 있으니 **아이폰·안드로
 sudo ./scripts/check.sh           # 전체 점검 (컨테이너·주소·인증서·푸시·보안)
 docker compose ps                 # 상태
 docker compose logs -f synapse    # 로그
+docker compose logs -f mautrix-telegram   # 텔레그램 브릿지 로그
 docker compose logs -f sygnal     # 푸시 알림 로그
 docker compose pull && docker compose up -d   # 업데이트
 ```
@@ -199,3 +239,103 @@ docker compose pull && docker compose up -d   # 업데이트
 ## 참고
 - 영상·음성 통화를 쓰려면 TURN 서버(coturn)를 추가로 설치하고 `templates/element-config.json` 의 `UIFeature.voip` 를 `true` 로 바꿔야 합니다
 - Synapse·Element 는 AGPL-3.0 라이선스입니다. 내부 사용은 문제없습니다
+
+---
+
+## 통화 (음성·영상)
+
+Element Call / MatrixRTC 방식. **통화 내용도 메시지처럼 종단간 암호화**되고, 중계 서버는 암호문만 전달합니다.
+
+| 구성요소 | 하는 일 | 노출 |
+| --- | --- | --- |
+| `livekit` | 음성·영상 중계(SFU) | UDP `LK_UDP_START~END`, TCP 7881 (공개) · 신호 7880 (내부만) |
+| `lk-jwt` | 계정 확인 후 통화 입장권 발급 | 내부만 (`/livekit/jwt` 로 프록시) |
+| `element-call` | PC 브라우저 통화 화면 | `CALL_HOST` |
+
+### 준비물
+
+1. `CALL_HOST` 용 **DNS A 레코드** (예: `call.example.com` → 서버 IP). Cloudflare 라면 **회색 구름** 권장.
+2. **방화벽**: UDP `50100-50200` 과 TCP `7881`. `install.sh` 가 자동으로 엽니다.
+3. `SERVER_NAME` 도메인이 **다른 사이트일 때는 추가 설정이 필요합니다** — 아래 참고.
+
+### `SERVER_NAME` 이 다른 사이트를 가리킬 때 (중요)
+
+아이디가 `@사람:example.com` 인데 `example.com` 이 별개의 웹사이트라면, 통화 인증 서비스가
+`https://example.com/.well-known/matrix/server` 를 읽지 못해 **통화가 401 로 끝납니다.**
+(그 다음 후보인 `example.com:8448` 로 가서 시간 초과)
+
+해결: 그 도메인에서 아래 한 줄만 응답하게 합니다.
+
+```json
+{"m.server": "matrix.example.com:443"}
+```
+
+Cloudflare 를 쓴다면 **Redirect Rule** 하나면 됩니다.
+
+| 항목 | 값 |
+| --- | --- |
+| 조건 | URI Path **equals** `/.well-known/matrix/server` |
+| 동작 | Static · 301 |
+| 이동 주소 | `https://matrix.example.com/.well-known/matrix/server` |
+
+원래 사이트에 없는 경로만 넘기므로 기존 서비스에 영향이 없습니다.
+`MATRIX_HOST` 쪽은 `install.sh` 가 정적 파일로 내주도록 설정합니다.
+
+> Synapse 의 `serve_server_wellknown: true` 는 쓰지 마세요. `SERVER_NAME:443` 을 내주기 때문에
+> 똑같이 실패합니다.
+
+### 잘 안 될 때 — 실제로 겪은 것들
+
+| 증상 | 원인 |
+| --- | --- |
+| **통화 버튼은 보이는데 눌러도 아무 일 없음** | `matrix_rtc.transports` 에 `url` 만 있고 `livekit_service_url` 이 없음. Element X 26.09 는 구경로를 쓴다. 둘 다 넣을 것 |
+| 통화 요청이 404 | `msc4512_enabled` 가 꺼져 있어 전달 경로가 등록되지 않음 |
+| 앱서비스 설정이 무시됨 | Synapse 1.161 은 `io.element.msc4512.proxy_prefix` 처럼 접두사 붙은 키만 읽는다. 기동 로그 `Loaded application service:` 에서 `proxy_prefix: None` 인지 확인 |
+| 계정 확인이 404 | Synapse listener 에 `openid` 리소스가 빠짐 |
+| `relative URL without a base` | `LIVEKIT_CS_API_URL_OVERRIDES` 에 `https://` 를 안 붙임 |
+| **고쳤는데도 계속 401** | `lk-jwt` 가 실패한 조회 결과를 캐시한다. `docker compose restart lk-jwt` |
+| Synapse 가 기동 실패 | `livekit-appservice.yaml` 이 root 소유 600. `chown 991:991` 필요 |
+| 브라우저에서 카메라·마이크가 안 잡힘 | 웹서버의 `Permissions-Policy` 가 막고 있음. 채팅/통화 호스트에는 `camera=(self), microphone=(self)` 로 |
+| 통화 화면이 채팅 안에서 안 열림 | 전역 `X-Frame-Options` 때문. `CALL_HOST` 에서 해제하고 CSP `frame-ancestors` 로만 제어 |
+| Element 웹에 통화 버튼이 없음 | `UIFeature.widgets` 가 `false`. 통화 화면은 위젯으로 뜬다 |
+| 방화벽을 열었는데 안 통함 | `iptables -S` 의 줄번호는 `-N` 줄 때문에 어긋난다. `--line-numbers` 로 REJECT 위치를 구해 그 **앞**에 넣을 것. 그리고 **tcpdump 는 차단 전 패킷을 잡으므로 도달 확인에 쓰면 안 된다** — `nc -u -l` 로 실제 수신을 볼 것 |
+
+### 확인 방법
+
+```bash
+# 중계 서버 목록이 보이는지 (로그인 토큰 필요)
+curl -H "Authorization: Bearer $TOKEN" \
+  https://matrix.example.com/_matrix/client/unstable/org.matrix.msc4143/rtc/transports
+
+# 앱과 같은 경로로 입장권이 나오는지 → jwt 가 오면 성공
+curl -X POST -H 'Content-Type: application/json' \
+  -d '{"room":"!방:example.com","openid_token":{...},"device_id":"..."}' \
+  https://matrix.example.com/livekit/jwt/sfu/get
+```
+
+`docker compose logs livekit` 에 `participant active ... connectionType: udp` 가 찍히면 실제로 연결된 것입니다.
+
+### 데스크톱 앱 주의
+
+맥·윈도우 **Element 데스크톱 앱은 자체 설정을 쓰기 때문에 통화 화면을 `call.element.io`(외부)에서
+불러옵니다.** 통화 미디어는 우리 서버로 오지만 화면은 외부에서 받아옵니다.
+외부 접속을 완전히 막으려면 앱 설정 파일에서 `element_call.url` 을 `CALL_HOST` 로 지정하거나,
+브라우저(`CHAT_HOST`)를 쓰세요.
+
+### 아직 안 된 것
+
+- `templates/webserver/nginx*.conf` 에는 통화 설정이 들어 있지 않습니다 (Apache 만 실제로 검증).
+- PC 브라우저 통화는 대기실이 열리는 것까지 확인했고, 실제 연결은 모바일(Element X)로만 확인했습니다.
+
+---
+
+## 접속 안내 페이지
+
+`scripts/make-guide.sh` 가 QR 이 포함된 안내 페이지를 만듭니다. 접속한 기기를 판별해
+**휴대폰에서는 QR 대신 바로 눌리는 링크**를, PC 에서는 QR 을 보여줍니다.
+
+```bash
+sudo ./scripts/make-guide.sh /var/www/private
+```
+
+`PRIVATE_HOST` 용 DNS 레코드와 웹서버 설정은 따로 해야 합니다.
