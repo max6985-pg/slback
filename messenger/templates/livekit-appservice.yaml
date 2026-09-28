@@ -1,0 +1,22 @@
+# 통화 인증 서비스(lk-jwt-service)를 Synapse 에 붙이는 등록 파일.
+# 방 참여 여부만 확인하고 메시지는 받지 않는다 (url: null).
+#
+# 주의: Synapse 1.161 은 io.element.* 접두사가 붙은 키만 읽는다.
+#       표준 이름(proxy_prefix 등)만 쓰면 조용히 무시되어 통화가 404 로 끝난다.
+#       기동 로그의 "Loaded application service:" 줄에서 proxy_prefix 가 None 이 아닌지 확인할 것.
+id: "LiveKit JWT service"
+as_token: "${LK_AS_TOKEN}"
+hs_token: "${LK_HS_TOKEN}"
+sender_localpart: "_lk_jwt_service"
+namespaces:
+  users:
+    - exclusive: false
+      regex: ".*"
+url: null
+io.element.msc4502.scopes: ["urn:matrix:client:io.element.msc4502:rooms:is_joined"]
+io.element.msc4512.proxy_prefix: "rtc/livekit"
+io.element.msc4512.proxy_url: "http://${LK_JWT_IP}:8080"
+# 표준 이름 (앞으로의 Synapse 버전용)
+scopes: ["urn:matrix:client:rooms:is_joined"]
+proxy_prefix: "rtc/livekit"
+proxy_url: "http://${LK_JWT_IP}:8080"

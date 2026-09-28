@@ -1,0 +1,320 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0c3b31">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='5' fill='%230c3b31'/><path d='M12 5 6 7.6v4.3c0 3.4 2.4 6 6 6.8 3.6-.8 6-3.4 6-6.8V7.6z' fill='none' stroke='%238fd3bd' stroke-width='1.7' stroke-linejoin='round'/><path d='m9.6 11.9 1.6 1.6 3.2-3.2' fill='none' stroke='%238fd3bd' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/></svg>">
+<title>${BRAND}</title>
+<style>
+:root{
+ --ground:#eef2f1;--surface:#fff;--ink:#0f1f1c;--dim:#46574f;--faint:#7c8c85;
+ --line:#dce4e0;--line2:#eaf0ed;--deep:#0c3b31;--brand:#0d5c49;--soft:#e4efeb;
+ --warn:#8a4a12;--warnbg:#fcf4e8;--bad:#9b3526;--badbg:#fdecea}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ground);color:var(--ink);
+ font:16px/1.72 -apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic",sans-serif;
+ word-break:keep-all;-webkit-font-smoothing:antialiased}
+.w{max-width:760px;margin:0 auto;padding:0 18px 72px}
+a{color:var(--brand)}
+
+/* 머리말 */
+.hero{background:var(--deep);color:#eaf4f0;margin:0 -18px 26px;padding:44px 26px 34px;
+ background-image:radial-gradient(120% 110% at 78% -20%,#175f4e 0%,#0c3b31 58%)}
+.hero .w2{max-width:724px;margin:0 auto}
+.mark{display:inline-flex;align-items:center;gap:9px;font-size:12.5px;letter-spacing:.14em;
+ font-weight:800;color:#8fd3bd;text-transform:uppercase;margin-bottom:14px}
+.mark svg{width:17px;height:17px;flex:none}
+h1{font-size:31px;line-height:1.28;margin:0 0 12px;letter-spacing:-.025em;color:#fff}
+.hero p{color:#b9d6cd;margin:0;font-size:15.5px;max-width:34em}
+.pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px}
+.pill{background:rgba(255,255,255,.1);color:#d6ece4;border:1px solid rgba(255,255,255,.16);
+ border-radius:999px;padding:6px 13px;font-size:12.5px;font-weight:700}
+
+/* 차례 */
+.toc{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:15px 20px;margin-bottom:18px}
+.toc b{font-size:12.5px;letter-spacing:.1em;color:var(--faint);text-transform:uppercase}
+.toc ol{margin:9px 0 0;padding-left:19px;font-size:14.5px;color:var(--dim);columns:2;column-gap:26px}
+.toc li{margin-bottom:3px;break-inside:avoid}
+.toc a{text-decoration:none}
+
+/* 카드 */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:26px 26px 28px;margin-bottom:16px}
+.card h2{font-size:20.5px;margin:0 0 4px;display:flex;align-items:center;gap:12px;letter-spacing:-.02em;scroll-margin-top:14px}
+.num{width:27px;height:27px;border-radius:9px;background:var(--soft);color:var(--brand);
+ font-size:14px;font-weight:800;display:grid;place-items:center;flex:none}
+.sub{color:var(--faint);font-size:14px;margin:0 0 16px;padding-left:39px}
+.card h3{font-size:15px;margin:20px 0 7px;color:var(--ink);letter-spacing:-.01em}
+.card h3:first-of-type{margin-top:6px}
+p{margin:9px 0;color:var(--dim);font-size:15px}
+ol.steps,ul.list{margin:9px 0;padding-left:21px;color:var(--dim);font-size:15px}
+ol.steps li,ul.list li{margin-bottom:6px}
+b,strong{color:var(--ink);font-weight:700}
+code{background:#eef3f1;border:1px solid var(--line2);border-radius:7px;padding:2px 8px;
+ font-size:14.5px;font-weight:700;color:var(--ink);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.big{display:block;font-size:19px;padding:13px 16px;text-align:center;margin:10px 0 4px}
+
+/* 버튼 */
+.btns{display:flex;flex-direction:column;gap:9px;margin:14px 0 4px}
+.btn{display:flex;align-items:center;gap:13px;background:var(--brand);color:#fff;text-decoration:none;
+ border:0;border-radius:13px;padding:15px 18px;font-size:16px;font-weight:700;cursor:pointer;
+ width:100%;text-align:left;font-family:inherit;transition:transform .08s}
+.btn:active{transform:scale(.985)}
+.btn.ghost{background:var(--surface);color:var(--brand);border:1.5px solid var(--soft)}
+.btn i{font-style:normal;font-size:19px;width:22px;text-align:center;flex:none}
+.btn small{display:block;font-size:12.5px;font-weight:500;opacity:.78;margin-top:1px}
+.btn.ghost small{opacity:.62;color:var(--dim)}
+
+/* QR */
+.qrs{display:flex;gap:22px;flex-wrap:wrap;margin:17px 0 2px;align-items:flex-start}
+.qr{text-align:center}
+.qr img{width:220px;height:220px;border:1px solid var(--line);border-radius:14px;display:block;background:#fff;padding:9px}
+.qr.big img{width:280px;height:280px}
+.qr span{display:block;font-size:13px;color:var(--faint);margin-top:9px;max-width:220px;line-height:1.55}
+.qr.big span{max-width:280px}
+
+/* 알림상자 */
+.note{background:var(--warnbg);border-left:3px solid var(--warn);border-radius:0 11px 11px 0;
+ padding:13px 16px;font-size:14.5px;margin:15px 0 0;color:var(--ink);line-height:1.65}
+.note b{color:var(--warn)}
+.danger{background:var(--badbg);border-left-color:var(--bad)}.danger b{color:var(--bad)}
+.ok{background:var(--soft);border-left-color:var(--brand)}.ok b{color:var(--brand)}
+
+/* 표 */
+table{border-collapse:collapse;width:100%;margin-top:12px;font-size:14.5px}
+th,td{text-align:left;padding:10px 11px;border-bottom:1px solid var(--line2);vertical-align:top;color:var(--dim)}
+th{color:var(--faint);font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;background:#f8fbfa;white-space:nowrap}
+td b{color:var(--ink)}
+tr:last-child td{border-bottom:0}
+
+/* 보안 격자 */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line2);
+ border:1px solid var(--line2);border-radius:14px;overflow:hidden;margin-top:16px}
+.cell{background:var(--surface);padding:16px 17px}
+.cell b{display:block;font-size:14.5px;margin-bottom:4px}
+.cell span{font-size:13.5px;color:var(--dim);line-height:1.62}
+.cell em{font-style:normal;display:block;margin-top:6px;font-size:12px;color:var(--brand);font-weight:700}
+footer{margin-top:28px;text-align:center;color:var(--faint);font-size:12.5px;line-height:1.8}
+
+/* 기기별 표시 — 스크립트가 <html> 에 d / m ios / m and 를 붙인다 */
+.only-mobile,.only-ios,.only-and{display:none}
+.m .only-mobile{display:block}
+.m .btns.only-mobile{display:flex}
+.ios a.btn.only-ios,.and a.btn.only-and{display:flex}
+.ios .only-ios,.and .only-and{display:block}
+.m .only-desktop{display:none}
+@media(max-width:600px){
+ .w{padding:0 15px 56px}
+ .hero{margin:0 -15px 20px;padding:34px 20px 28px}
+ h1{font-size:25px}
+ .card{padding:21px 19px 23px;border-radius:15px}
+ .card h2{font-size:18.5px}
+ .sub{padding-left:0}
+ .toc ol{columns:1}
+ .grid{grid-template-columns:1fr}
+ .qr img,.qr.big img{width:100%;max-width:280px;height:auto}
+ .qrs{gap:16px}
+ table{font-size:14px}th,td{padding:9px 7px}
+}
+@media print{.toc,.btns{display:none}.card{break-inside:avoid}body{background:#fff}.hero{background:#0c3b31!important;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+</style></head><body><div class="w">
+
+<div class="hero"><div class="w2">
+  <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.5 4 6v6c0 4.7 3.3 8.4 8 9.5 4.7-1.1 8-4.8 8-9.5V6z"/><path d="m9 12 2 2 4-4"/></svg>보안 메신저</div>
+  <h1>${BRAND}<br>접속 안내</h1>
+  <p>주고받는 내용이 기기에서 암호화되어, 서버를 관리하는 사람도 열어 볼 수 없는 업무용 메신저입니다. 아래 순서대로 하면 5분 안에 쓸 수 있습니다.</p>
+  <div class="pills">
+    <span class="pill">종단간 암호화</span>
+    <span class="pill">자체 운영 서버</span>
+    <span class="pill">외부 연결 차단</span>
+    <span class="pill">허가된 계정만</span>
+  </div>
+</div></div>
+
+<div class="toc"><b>차례</b>
+<ol>
+  <li><a href="#s1">앱 설치</a></li>
+  <li><a href="#s2">서버 연결</a></li>
+  <li><a href="#s3">로그인</a></li>
+  <li><a href="#s4">첫 설정 (중요)</a></li>
+  <li><a href="#s5">PC·알림으로 쓰기</a></li>
+  <li><a href="#s6">안심해도 되는 이유</a></li>
+  <li><a href="#s7">잘 안 될 때</a></li>
+  <li><a href="#s8">사용 수칙</a></li>
+</ol></div>
+
+<!-- 1 -->
+<div class="card"><h2 id="s1"><span class="num">1</span>앱 설치</h2>
+<p class="sub">휴대폰에 <b>Element X</b> 를 설치합니다.</p>
+
+<div class="btns only-mobile">
+  <a class="btn only-ios" href="https://apps.apple.com/app/id1631335820"><i>↓</i><span>App Store 에서 Element X 설치<small>아이폰 · 파란색 아이콘</small></span></a>
+  <a class="btn only-and" href="https://play.google.com/store/apps/details?id=io.element.android.x"><i>↓</i><span>Play 스토어에서 Element X 설치<small>안드로이드 · 파란색 아이콘</small></span></a>
+</div>
+
+<div class="only-desktop">
+  <p>휴대폰 카메라로 아래 QR 을 비추면 스토어로 바로 갑니다. 스토어에서 <b>Element X</b> 로 검색해도 됩니다.</p>
+  <div class="qrs">
+    <div class="qr"><img src="qr/ios.png" alt="아이폰 설치"><span>아이폰<br>App Store</span></div>
+    <div class="qr"><img src="qr/and.png" alt="안드로이드 설치"><span>안드로이드<br>Play 스토어</span></div>
+  </div>
+</div>
+
+<div class="note danger"><b>비슷한 앱 주의</b> — 이름이 거의 같은 <b>Element</b>(초록색 아이콘, 구버전)가 따로 있습니다. 그 앱으로는 아래 자동 연결이 되지 않습니다. 반드시 <b>파란색 Element X</b> 를 받으세요.</div>
+</div>
+
+<!-- 2 -->
+<div class="card"><h2 id="s2"><span class="num">2</span>서버 연결</h2>
+<p class="sub">앱이 우리 서버를 바라보게 하는 단계입니다. 한 번만 하면 됩니다.</p>
+
+<div class="only-mobile">
+  <p><b>앱을 설치한 뒤</b> 아래를 누르면 서버 주소가 채워진 로그인 화면이 열립니다.</p>
+  <div class="btns only-mobile">
+    <a class="btn" href="https://mobile.element.io/element/?account_provider=${MATRIX_HOST}"><i>→</i><span>앱 열고 서버 자동 연결<small>Element X 가 열립니다</small></span></a>
+    <button class="btn ghost" onclick="navigator.clipboard.writeText('${MATRIX_HOST}');this.querySelector('span b').textContent='복사했습니다 ✓'"><i>⧉</i><span><b>서버 주소 복사</b><small>${MATRIX_HOST} · 직접 입력할 때</small></span></button>
+  </div>
+  <p style="font-size:14px">위 버튼으로 웹페이지만 열린다면 앱이 아직 설치되지 않은 것입니다. 1번부터 다시 하세요.</p>
+</div>
+
+<div class="only-desktop">
+  <h3>방법 A — QR 로 자동 연결 (권장)</h3>
+  <ol class="steps">
+    <li>앱을 설치한 <b>뒤에</b> 휴대폰 <b>카메라 앱</b>을 켭니다</li>
+    <li>아래 QR 을 비추면 화면 위에 링크 알림이 뜹니다 → 누릅니다</li>
+    <li>Element X 가 열리고 <b>서버 주소가 자동으로 채워진</b> 로그인 화면이 나옵니다</li>
+  </ol>
+  <div class="qrs"><div class="qr big"><img src="qr/app.png" alt="서버 자동 연결"><span>앱 서버 자동 연결 — 카메라 앱으로 찍으세요</span></div></div>
+  <div class="note"><b>앱 안의 QR 기능으로 찍지 마세요.</b> Element X 안에 있는 "QR 코드로 로그인"은 용도가 달라 "잘못된 QR 코드"라고 나옵니다. 반드시 휴대폰 <b>카메라 앱</b>으로 찍으세요.</div>
+</div>
+
+<h3>주소를 직접 넣는 방법 (어떤 버전에서도 됨)</h3>
+<ol class="steps">
+  <li>Element X 를 열고 <b>로그인 / 계정 추가</b></li>
+  <li><b>서버 변경</b>(Change account provider) 을 누릅니다</li>
+  <li>아래 주소를 그대로 넣고 계속합니다</li>
+</ol>
+<code class="big">${MATRIX_HOST}</code>
+<p style="font-size:14px;text-align:center;color:var(--faint)">앞에 <code>https://</code> 를 붙이지 않아도 됩니다</p>
+</div>
+
+<!-- 3 -->
+<div class="card"><h2 id="s3"><span class="num">3</span>로그인</h2>
+<p class="sub">관리자에게 받은 아이디와 비밀번호를 넣습니다.</p>
+<div class="note ok"><b>아이디는 앞부분만 넣으면 됩니다.</b> 전체 아이디가 <code>@hong:${SERVER_NAME}</code> 이라면 <b><code>hong</code></b> 만 넣어도 그대로 로그인됩니다. 뒤에 <code>:${SERVER_NAME}</code> 을 붙이지 않아도 되고, 붙여도 똑같이 됩니다.</div>
+<table>
+  <tr><th>넣는 곳</th><th>넣는 값</th></tr>
+  <tr><td><b>Username</b></td><td>받은 아이디 (예: <code>hong</code>)</td></tr>
+  <tr><td><b>Password</b></td><td>받은 비밀번호</td></tr>
+</table>
+<p style="font-size:14px;margin-top:13px">비밀번호는 <b>12자 이상</b>입니다. 대소문자를 구분하니 그대로 입력하세요. 여러 번 틀리면 잠시 로그인이 막히니(자동 공격을 막는 장치입니다) 1~2분 뒤 다시 시도하면 됩니다.</p>
+</div>
+
+<!-- 4 -->
+<div class="card"><h2 id="s4"><span class="num">4</span>첫 설정 (중요)</h2>
+<p class="sub">로그인한 다음 바로 해 두세요.</p>
+<div class="note danger"><b>보안 키(복구 키)를 반드시 저장하세요.</b><br>
+설정 → 보안 및 개인정보 → <b>복구 설정</b> 에서 보안 키를 만들고 <b>안전한 곳에 적어 두세요.</b><br><br>
+대화가 기기에서 암호화되기 때문에 <b>서버에는 읽을 수 있는 내용이 없습니다.</b> 이 키가 없으면 휴대폰을 잃거나 앱을 지웠을 때 지난 대화를 되살릴 방법이 없고, <b>관리자도 복구해 줄 수 없습니다.</b> 이것은 고장이 아니라 이 메신저가 안전한 이유입니다.</div>
+<h3>이어서 해 두면 좋은 것</h3>
+<ul class="list">
+  <li><b>알림 허용</b> — 앱이 물어볼 때 허용하세요. 끄면 새 메시지가 와도 모릅니다</li>
+  <li><b>표시 이름 바꾸기</b> — 아이디는 영문이지만 설정에서 <b>한글 이름</b>으로 바꿔 상대에게 보이게 할 수 있습니다</li>
+  <li><b>기기 확인</b> — 새 기기로 로그인하면 기존 기기에 확인 요청이 뜹니다. 본인이 맞으면 확인해 주세요. <b>모르는 기기가 뜨면 즉시 관리자에게 알리세요</b></li>
+</ul>
+</div>
+
+<!-- 5 -->
+<div class="card"><h2 id="s5"><span class="num">5</span>PC·알림으로 쓰기</h2>
+<p class="sub">앱 없이 브라우저만으로도 똑같이 쓸 수 있습니다.</p>
+
+<h3>PC·노트북</h3>
+<p>설치 없이 <a href="https://${CHAT_HOST}">${CHAT_HOST}</a> 에 접속해 같은 아이디로 로그인하면 됩니다. 휴대폰과 같은 계정이라 대화가 함께 이어집니다.</p>
+
+<h3>휴대폰에서 알림만 받기</h3>
+<p>앱을 설치하지 않아도 홈 화면에 추가해 알림을 받을 수 있습니다.</p>
+<div class="btns only-mobile">
+  <a class="btn ghost" href="https://${CHAT_HOST}"><i>◻</i><span><b>브라우저로 채팅 열기</b><small>${CHAT_HOST}</small></span></a>
+  <a class="btn ghost" href="https://${CHAT_HOST}/push/"><i>🔔</i><span><b>알림 켜기</b><small>${CHAT_HOST}/push/</small></span></a>
+</div>
+<table>
+  <tr><th></th><th>아이폰</th><th>안드로이드</th></tr>
+  <tr><td><b>브라우저</b></td><td><b>Safari</b> 로 열기</td><td><b>Chrome</b> 으로 열기</td></tr>
+  <tr><td><b>홈 화면 추가</b></td><td>공유(□↑) → <b>홈 화면에 추가</b></td><td>메뉴(⋮) → <b>홈 화면에 추가</b></td></tr>
+  <tr><td><b>알림</b></td><td colspan="2">홈 화면 아이콘으로 열고 로그인 → <b>알림 허용</b></td></tr>
+</table>
+<div class="only-desktop"><div class="qrs">
+  <div class="qr"><img src="qr/web.png" alt="브라우저 채팅"><span>브라우저 채팅<br>${CHAT_HOST}</span></div>
+  <div class="qr"><img src="qr/push.png" alt="알림 켜기"><span>휴대폰 알림 켜기<br>${CHAT_HOST}/push/</span></div>
+</div></div>
+<div class="note"><b>알림에는 내용이 담기지 않습니다.</b> "새 메시지가 도착했습니다" 만 표시되고, 누가 무슨 말을 했는지는 앱을 열어 본인 기기에서 풀어야 보입니다. 잠금화면을 남이 봐도 내용이 새지 않습니다.</div>
+</div>
+
+<!-- 6 -->
+<div class="card"><h2 id="s6"><span class="num">6</span>안심해도 되는 이유</h2>
+<p class="sub">이 메신저에 실제로 적용되어 있는 설정입니다.</p>
+<div class="grid">
+  <div class="cell"><b>대화 내용은 기기에서만 풀립니다</b><span>모든 새 대화방이 자동으로 종단간 암호화됩니다. 서버에는 알아볼 수 없는 암호문만 남아 <b>서버 관리자도 내용을 볼 수 없습니다.</b></span><em>새 방 기본 암호화 · 켜짐</em></div>
+  <div class="cell"><b>우리 서버에만 저장됩니다</b><span>카카오톡·텔레그램 같은 외부 회사 서버를 거치지 않습니다. 대화와 파일은 우리가 직접 운영하는 서버에만 있습니다.</span><em>자체 서버 운영</em></div>
+  <div class="cell"><b>아무나 가입할 수 없습니다</b><span>가입 기능이 아예 꺼져 있습니다. 관리자가 직접 만들어 준 계정만 접속할 수 있어, 모르는 사람이 들어올 수 없습니다.</span><em>회원가입 · 차단됨</em></div>
+  <div class="cell"><b>바깥 서버와 연결되지 않습니다</b><span>다른 메신저 서버와 메시지를 주고받지 않도록 막아 두었습니다. 우리 계정끼리만 대화할 수 있고, 방 목록이 외부에 노출되지 않습니다.</span><em>연합(외부 연결) · 차단됨</em></div>
+  <div class="cell"><b>서버가 외부 사이트를 열지 않습니다</b><span>링크 미리보기 기능을 꺼서, 누가 링크를 보내도 서버가 그 주소에 접속하지 않습니다. 추적용 링크로 정보가 새지 않습니다.</span><em>링크 미리보기 · 꺼짐</em></div>
+  <div class="cell"><b>로그인 없이는 아무것도 못 봅니다</b><span>이름·사진 같은 프로필 조회조차 로그인한 사람만 가능합니다. 밖에서 계정 목록을 훑어볼 수 없습니다.</span><em>프로필 조회 · 인증 필요</em></div>
+  <div class="cell"><b>비밀번호 추측 공격을 막습니다</b><span>비밀번호는 12자 이상이어야 하고, 로그인을 반복해서 틀리면 시도 자체가 느려집니다. 자동 대입 공격이 통하지 않습니다.</span><em>12자 이상 · 속도 제한</em></div>
+  <div class="cell"><b>기록이 오래 남지 않습니다</b><span>접속 기록은 7일 뒤, 삭제한 메시지는 1일 뒤 서버에서 완전히 지워집니다. 오래된 파일도 자동 정리됩니다.</span><em>접속기록 7일 · 삭제 1일</em></div>
+  <div class="cell"><b>통계가 밖으로 나가지 않습니다</b><span>사용량·오류 정보를 외부에 보내는 기능을 껐습니다. 어떤 정보도 자동으로 제3자에게 전송되지 않습니다.</span><em>외부 통계 전송 · 꺼짐</em></div>
+  <div class="cell"><b>연결 구간도 암호화됩니다</b><span>휴대폰·PC 와 서버 사이는 암호화된 연결(HTTPS)만 허용합니다. 같은 와이파이를 쓰는 사람이 가로채 볼 수 없습니다.</span><em>HTTPS 전용</em></div>
+</div>
+<div class="note ok"><b>한 줄 요약</b> — 내용은 <b>보내는 사람과 받는 사람의 기기에서만</b> 열립니다. 서버가 털려도 대화 내용은 읽히지 않습니다. 그래서 4번의 <b>보안 키 저장</b>이 그만큼 중요합니다.</div>
+</div>
+
+<!-- 7 -->
+<div class="card"><h2 id="s7"><span class="num">7</span>잘 안 될 때</h2>
+<table>
+  <tr><th>증상</th><th>해결</th></tr>
+  <tr><td><b>"잘못된 QR 코드" 라고 나옴</b></td><td>앱 안의 QR 기능으로 찍으신 겁니다. 휴대폰 <b>카메라 앱</b>으로 찍으세요</td></tr>
+  <tr><td><b>앱이 안 열리고 웹페이지만 열림</b></td><td>앱이 설치돼 있는지 확인하세요. 설치돼 있는데도 그렇다면 안드로이드는 <b>설정 → 앱 → Element X → 기본으로 열기</b> 에서 <code>mobile.element.io</code> 를 켜세요</td></tr>
+  <tr><td><b>앱은 열렸는데 서버 칸이 비어 있음</b></td><td>앱 버전이 낮습니다. 스토어에서 업데이트하거나, 2번의 <b>주소 직접 입력</b>으로 <code>${MATRIX_HOST}</code> 을 넣으세요</td></tr>
+  <tr><td><b>로그인이 안 됨</b></td><td>아이디는 <b>앞부분만</b> 넣으면 됩니다. 대소문자를 확인하세요. 여러 번 틀렸다면 1~2분 뒤 다시 시도하세요</td></tr>
+  <tr><td><b>비밀번호를 잊음</b></td><td>스스로 재설정할 수 없습니다. <b>관리자에게 초기화를 요청</b>하세요</td></tr>
+  <tr><td><b>알림이 안 옴</b></td><td>휴대폰 설정에서 해당 앱(또는 홈 화면에 추가한 아이콘)의 알림이 켜져 있는지 확인하세요</td></tr>
+  <tr><td><b>대화방에 경고 표시가 뜸</b></td><td>확인되지 않은 기기가 있다는 뜻입니다. 본인 기기라면 <b>세션 확인</b>을 해 주고, <b>모르는 기기면 관리자에게 알리세요</b></td></tr>
+  <tr><td><b>지난 대화가 안 보임</b></td><td>새 기기에는 암호가 없어서 그렇습니다. 4번의 <b>보안 키</b>를 넣거나 기존 기기에서 확인해 주면 풀립니다</td></tr>
+</table>
+</div>
+
+<!-- 8 -->
+<div class="card"><h2 id="s8"><span class="num">8</span>사용 수칙</h2>
+<ul class="list">
+  <li><b>관리자는 비밀번호나 인증번호를 절대 묻지 않습니다.</b> 그런 연락을 받으면 사칭입니다</li>
+  <li>계정을 <b>다른 사람과 같이 쓰지 마세요.</b> 필요하면 관리자에게 계정을 더 요청하세요</li>
+  <li>휴대폰을 잃어버리면 <b>즉시 관리자에게 알리세요.</b> 해당 기기의 접속을 끊을 수 있습니다</li>
+  <li>대화 화면을 캡처해 외부로 보내면 암호화가 소용없습니다. <b>내용 반출은 금지</b>입니다</li>
+  <li>보안 키는 메신저 안이나 메모 앱이 아니라 <b>따로</b> 보관하세요</li>
+</ul>
+</div>
+
+<div class="card"><h2>이 안내 전달하기</h2>
+<p class="sub">아래 주소 하나만 보내면 상대가 처음부터 따라 할 수 있습니다.</p>
+<div class="btns only-mobile">
+  <button class="btn" onclick="share(this)"><i>↗</i><span><b>안내 주소 공유하기</b><small>${PRIVATE_HOST}</small></span></button>
+</div>
+<div class="only-desktop">
+  <div class="qrs"><div class="qr big"><img src="qr/self.png" alt="안내 페이지"><span>${PRIVATE_HOST}</span></div></div>
+</div>
+</div>
+
+<footer>${BRAND} · 계정 발급과 비밀번호 초기화는 관리자에게 문의하세요<br>이 페이지는 검색에 노출되지 않습니다</footer>
+</div>
+<script>
+(function(){
+  var u=navigator.userAgent,
+      ios=/iPhone|iPad|iPod/.test(u)||(/Mac/.test(u)&&navigator.maxTouchPoints>1),
+      and=/Android/.test(u),
+      c=and?'m and':(ios?'m ios':'d');
+  document.documentElement.className=c;
+})();
+function share(b){
+  var url=location.origin+location.pathname;
+  if(navigator.share){navigator.share({title:'${BRAND} 접속 안내',url:url}).catch(function(){});}
+  else{navigator.clipboard.writeText(url);b.querySelector('b').textContent='주소를 복사했습니다 ✓';}
+}
+</script></body></html>

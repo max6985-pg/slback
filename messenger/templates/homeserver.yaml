@@ -13,7 +13,7 @@ listeners:
     x_forwarded: true
     bind_addresses: ["0.0.0.0"]
     resources:
-      - names: [client]
+      - names: [client, openid]   # openid: 통화 인증 서비스가 계정을 확인할 때 쓴다
         compress: false
 
 database:
@@ -100,3 +100,44 @@ ip_range_whitelist:
 # 기록 최소화: 접속 IP 는 7일, 삭제한 메시지 원본은 1일 후 완전 삭제
 user_ips_max_age: 7d
 redaction_retention_period: 1d
+
+# ─────────────── 통화(음성·영상) ───────────────
+# 통화도 메시지와 같이 종단간 암호화된다. 중계 서버는 암호문만 전달한다.
+app_service_config_files:
+  - /data/livekit-appservice.yaml
+
+experimental_features:
+  msc4143_enabled: true    # 통화 중계 서버 위치를 앱에 알려줌
+  msc4222_enabled: true    # 통화 참가 상태를 정확히 추적
+  msc4502_enabled: true    # 인증 서비스가 방 참여 여부만 확인하도록 (권한 최소화)
+  msc4512_enabled: true    # 통화 인증 요청을 Synapse 가 대신 전달
+                           #   ↑ 이게 없으면 전달 경로 자체가 등록되지 않아 404 가 난다
+
+# 참가 표시가 끊겨도 자동 정리되도록 (지연 이벤트)
+max_event_delay_duration: 24h
+
+# 통화는 신호가 몰려서 기본 제한에 걸린다 — 통화에 필요한 만큼만 올림 (로그인 제한은 그대로)
+rc_message:
+  per_second: 0.5
+  burst_count: 30
+rc_delayed_event_mgmt:
+  per_second: 1
+  burst_count: 20
+
+matrix_rtc:
+  transports:
+    - type: livekit
+      url: wss://${MATRIX_HOST}/livekit/sfu
+      # livekit_service_url 은 "구식"으로 표시돼 있지만 빼면 안 된다.
+      # Element X 26.09 는 이 값을 보고 통화를 시작한다. url 만 있으면
+      # 통화 버튼은 보이는데 눌러도 서버에 요청조차 오지 않는다.
+      livekit_service_url: https://${MATRIX_HOST}/livekit/jwt
+
+# 구버전 앱은 .well-known 으로 통화 서버를 찾는다
+extra_well_known_client_content:
+  org.matrix.msc4143.rtc_foci:
+    - type: livekit
+      livekit_service_url: https://${MATRIX_HOST}/livekit/jwt
+
+# serve_server_wellknown 은 켜지 말 것 — SERVER_NAME:443 을 내주는데,
+# 그 도메인이 다른 사이트라면 통화 인증이 실패한다. 웹서버가 정적 파일로 내준다.

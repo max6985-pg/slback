@@ -58,6 +58,60 @@ services:
     ports:
       - "127.0.0.1:${ELEMENT_PORT:-8088}:80"
 
+  # 관리자 화면 — 브라우저에서 사용자 추가·비밀번호 초기화
+  # 원본 latest 이미지는 로그인 화면이 무한 반복되는 문제가 있어 etkecc 배포판을 쓴다.
+  admin:
+    image: ghcr.io/etkecc/synapse-admin:latest
+    restart: unless-stopped
+    volumes:
+      - ./data/admin-config.json:/home/sws/public/config.json:ro
+    ports:
+      - "127.0.0.1:${ADMIN_PORT:-8090}:8080"
+
+  # ── 통화(음성·영상) ──
+  # 중계 서버. 호스트 네트워크를 써야 UDP 미디어가 그대로 오간다.
+  livekit:
+    image: livekit/livekit-server:latest
+    restart: unless-stopped
+    network_mode: host
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./data/livekit/livekit.yaml:/etc/livekit.yaml:ro
+
+  # 통화 인증 서비스 — 매트릭스 계정을 확인하고 통화 입장권(JWT)을 발급
+  lk-jwt:
+    image: ghcr.io/element-hq/lk-jwt-service:latest
+    restart: unless-stopped
+    depends_on: [livekit]
+    environment:
+      LIVEKIT_URL: "wss://${MATRIX_HOST}/livekit/sfu"
+      LIVEKIT_KEY: "${LK_KEY}"
+      LIVEKIT_SECRET: "${LK_SECRET}"
+      LIVEKIT_AS_REGISTRATION_FILE: "/registration.yaml"
+      LIVEKIT_HS_SERVER_NAME: "${SERVER_NAME}"
+      LIVEKIT_FULL_ACCESS_HOMESERVERS: "${SERVER_NAME}"
+      # 스킴(https://)을 반드시 붙일 것 — 없으면 "relative URL without a base" 로 실패한다
+      LIVEKIT_CS_API_URL_OVERRIDES: "${SERVER_NAME}=https://${MATRIX_HOST}"
+      LIVEKIT_SANITY_CHECK_INTERVAL_SECONDS: "30"
+      LIVEKIT_LOG_LEVEL: "info"
+    volumes:
+      - ./data/synapse/livekit-appservice.yaml:/registration.yaml:ro
+    ports:
+      - "127.0.0.1:${JWT_PORT:-8070}:8080"
+    networks:
+      default:
+      push:
+        ipv4_address: ${LK_JWT_IP:-10.250.250.5}
+
+  # PC 브라우저 통화 화면 (Element Call) — 자체 호스팅, 외부 call.element.io 를 쓰지 않는다
+  element-call:
+    image: ghcr.io/element-hq/element-call:latest
+    restart: unless-stopped
+    volumes:
+      - ./data/element-call/config.json:/app/config.json:ro
+    ports:
+      - "127.0.0.1:${CALL_PORT:-8092}:8080"
+
 networks:
   # Synapse → Sygnal 전용. Synapse 는 사설 IP 로의 요청을 막으므로 Sygnal 주소만 고정해서 허용합니다
   # (homeserver.yaml 의 ip_range_whitelist). 다른 네트워크와 겹치면 .env 의 PUSH_SUBNET/SYGNAL_IP 변경

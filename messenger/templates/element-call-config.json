@@ -1,0 +1,14 @@
+{
+  "default_server_config": {
+    "m.homeserver": {
+      "base_url": "https://${MATRIX_HOST}",
+      "server_name": "${SERVER_NAME}"
+    }
+  },
+  "matrix_rtc_mode": "compatibility",
+  "matrix_rtc_session": {
+    "wait_for_key_rotation_ms": 3000,
+    "membership_event_expiry_ms": 180000000,
+    "network_error_retry_ms": 100
+  }
+}

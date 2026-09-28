@@ -18,12 +18,18 @@
   "integrations_rest_url": null,
   "integrations_widgets_urls": null,
   "bug_report_endpoint_url": null,
+  "element_call": {
+    "url": "https://${CALL_HOST}",
+    "use_exclusively": true,
+    "participant_limit": 12,
+    "brand": "${BRAND}"
+  },
   "setting_defaults": {
     "UIFeature.registration": false,
     "UIFeature.passwordReset": false,
     "UIFeature.thirdPartyId": false,
-    "UIFeature.widgets": false,
-    "UIFeature.voip": false,
+    "UIFeature.widgets": true,
+    "UIFeature.voip": true,
     "UIFeature.locationSharing": false,
     "UIFeature.feedback": false,
     "UIFeature.shareSocial": false,

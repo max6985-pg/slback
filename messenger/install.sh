@@ -58,18 +58,34 @@ if ! command -v docker >/dev/null; then
 fi
 docker compose version >/dev/null 2>&1 || die "docker compose 플러그인이 없습니다. Docker 를 최신 버전으로 업데이트하세요."
 
-for k in POSTGRES_PASSWORD REGISTRATION_SHARED_SECRET MACAROON_SECRET_KEY FORM_SECRET; do set_secret "$k"; done
+for k in POSTGRES_PASSWORD REGISTRATION_SHARED_SECRET MACAROON_SECRET_KEY FORM_SECRET LK_AS_TOKEN LK_HS_TOKEN LK_SECRET; do set_secret "$k"; done
+# LiveKit API 키는 접두사가 있어야 한다
+if ! grep -qE '^LK_KEY=.+' .env; then
+  if grep -qE '^LK_KEY=' .env; then sed -i "s|^LK_KEY=.*|LK_KEY=API$(openssl rand -hex 6)|" .env
+  else echo "LK_KEY=API$(openssl rand -hex 6)" >> .env; fi
+fi
 set_default PUSH_APP_ID net.onepin.push
 set_default PUSH_SUBNET 10.250.250.0/29
 set_default SYGNAL_IP 10.250.250.4
+set_default ADMIN_PORT 8090
+set_default JWT_PORT 8070
+set_default CALL_PORT 8092
+set_default LK_JWT_IP 10.250.250.5
+set_default LK_UDP_START 50100
+set_default LK_UDP_END 50200
+set_default CALL_HOST "call.${SERVER_NAME:-example.com}"
+# 통화 미디어가 들어올 공인 IP. 비어 있으면 자동으로 알아낸다.
+grep -qE '^NODE_IP=.+' .env || sed -i "s|^NODE_IP=.*|NODE_IP=$(curl -s --max-time 8 https://ifconfig.me || hostname -I | awk '{print $1}')|" .env
+grep -qE '^NODE_IP=' .env || echo "NODE_IP=$(curl -s --max-time 8 https://ifconfig.me || hostname -I | awk '{print $1}')" >> .env
 chmod 600 .env
 set -a; . ./.env; set +a
 
-for v in SERVER_NAME MATRIX_HOST CHAT_HOST BRAND ADMIN_EMAIL ADMIN_USER SYNAPSE_PORT ELEMENT_PORT MAX_UPLOAD_SIZE PUSH_APP_ID PUSH_SUBNET SYGNAL_IP; do
+for v in SERVER_NAME MATRIX_HOST CHAT_HOST CALL_HOST BRAND ADMIN_EMAIL ADMIN_USER SYNAPSE_PORT ELEMENT_PORT ADMIN_PORT JWT_PORT CALL_PORT MAX_UPLOAD_SIZE PUSH_APP_ID PUSH_SUBNET SYGNAL_IP LK_KEY LK_SECRET LK_AS_TOKEN LK_HS_TOKEN LK_JWT_IP LK_UDP_START LK_UDP_END NODE_IP; do
   [ -n "${!v:-}" ] || die ".env 의 $v 값이 비어 있습니다."
 done
 
-VARS='${SERVER_NAME} ${MATRIX_HOST} ${CHAT_HOST} ${BRAND} ${ADMIN_EMAIL} ${SYNAPSE_PORT} ${ELEMENT_PORT} ${MAX_UPLOAD_SIZE} ${POSTGRES_PASSWORD} ${REGISTRATION_SHARED_SECRET} ${MACAROON_SECRET_KEY} ${FORM_SECRET} ${CERT_DIR} ${PUSH_APP_ID} ${SYGNAL_IP} ${VAPID_PUBLIC_KEY}'
+VARS='${SERVER_NAME} ${MATRIX_HOST} ${CHAT_HOST} ${CALL_HOST} ${BRAND} ${ADMIN_EMAIL} ${SYNAPSE_PORT} ${ELEMENT_PORT} ${ADMIN_PORT} ${JWT_PORT} ${CALL_PORT} ${MAX_UPLOAD_SIZE} ${POSTGRES_PASSWORD} ${REGISTRATION_SHARED_SECRET} ${MACAROON_SECRET_KEY} ${FORM_SECRET} ${CERT_DIR} ${WELLKNOWN_DIR} ${PUSH_APP_ID} ${SYGNAL_IP} ${VAPID_PUBLIC_KEY} ${LK_KEY} ${LK_SECRET} ${LK_AS_TOKEN} ${LK_HS_TOKEN} ${LK_JWT_IP} ${LK_UDP_START} ${LK_UDP_END} ${NODE_IP}'
+WELLKNOWN_DIR="$DIR/data/well-known"; export WELLKNOWN_DIR
 render() { envsubst "$VARS" < "$1" > "$2"; }
 
 # ── 3. 포트 충돌 확인 ─────────────────────────────────────────
@@ -94,6 +110,39 @@ chmod 600 data/synapse/homeserver.yaml
 
 render templates/element-config.json data/element/config.json
 render templates/well-known-client.json data/well-known-client.json
+render templates/admin-config.json data/admin-config.json
+
+# ── 4-2. 통화(음성·영상) ──────────────────────────────────────
+info "통화 설정"
+mkdir -p data/livekit data/element-call "$WELLKNOWN_DIR"
+render templates/livekit.yaml            data/livekit/livekit.yaml
+render templates/element-call-config.json data/element-call/config.json
+render templates/well-known-server.json   "$WELLKNOWN_DIR/server"
+render templates/livekit-appservice.yaml  data/synapse/livekit-appservice.yaml
+# Synapse 가 읽어야 하므로 소유자를 맞춘다. root 소유 600 이면 Synapse 가 기동에 실패한다.
+chown 991:991 data/synapse/livekit-appservice.yaml
+chmod 640 data/synapse/livekit-appservice.yaml
+chmod 600 data/livekit/livekit.yaml
+
+# 통화 미디어용 포트 열기 (UDP 범위 + TCP 대체 통로)
+open_port() {  # 프로토콜 포트
+  if command -v ufw >/dev/null && ufw status 2>/dev/null | grep -q "Status: active"; then
+    ufw allow "$2/$1" >/dev/null 2>&1
+  elif command -v iptables >/dev/null; then
+    local chain=INPUT
+    iptables -L RH-Firewall-1-INPUT -n >/dev/null 2>&1 && chain=RH-Firewall-1-INPUT
+    iptables -C "$chain" -p "$1" -m state --state NEW -m "$1" --dport "$2" -j ACCEPT 2>/dev/null && return
+    # REJECT/DROP 규칙 "앞"에 넣어야 한다. iptables -S 의 줄번호는 -N 줄 때문에 어긋나므로
+    # --line-numbers 로 실제 위치를 구한다.
+    local n; n=$(iptables -L "$chain" --line-numbers -n | awk '$2=="REJECT"||$2=="DROP"{print $1; exit}')
+    if [ -n "$n" ]; then iptables -I "$chain" "$n" -p "$1" -m state --state NEW -m "$1" --dport "$2" -j ACCEPT
+    else iptables -A "$chain" -p "$1" -m state --state NEW -m "$1" --dport "$2" -j ACCEPT; fi
+  fi
+}
+open_port udp "${LK_UDP_START}:${LK_UDP_END}"
+open_port tcp 7881
+command -v netfilter-persistent >/dev/null && netfilter-persistent save >/dev/null 2>&1 || \
+  { [ -d /etc/iptables ] && iptables-save > /etc/iptables/rules.v4 2>/dev/null; } || true
 
 # ── 4-1. 푸시 알림 (Sygnal + 알림 켜기 페이지 /push/) ──────────
 info "푸시 알림 설정"
@@ -175,7 +224,7 @@ case "$WEB" in
     systemctl reload nginx
     ;;
   apache2)
-    a2enmod -q proxy proxy_http headers ssl rewrite
+    a2enmod -q proxy proxy_http proxy_wstunnel headers ssl rewrite   # wstunnel: 통화 신호(웹소켓)
     CONF=/etc/apache2/sites-available/onepin-messenger.conf
     render "templates/webserver/apache${SUFFIX}.conf" "$CONF"
     a2ensite -q onepin-messenger
@@ -230,8 +279,10 @@ else
   install_pkgs certbot "python3-certbot-$CB_INSTALLER"
   CB_AUTH=(--authenticator "$CB_INSTALLER")
 fi
-if certbot "${CB_AUTH[@]}" --installer "$CB_INSTALLER" --non-interactive --agree-tos --redirect \
-     -m "$ADMIN_EMAIL" -d "$MATRIX_HOST" -d "$CHAT_HOST"; then
+if [ "${SKIP_CERTBOT:-0}" = 1 ]; then
+  warn "SKIP_CERTBOT=1 — 인증서 발급을 건너뜁니다 (Cloudflare 가 HTTPS 를 처리하는 구성)"
+elif certbot "${CB_AUTH[@]}" --installer "$CB_INSTALLER" --non-interactive --agree-tos --redirect \
+     -m "$ADMIN_EMAIL" -d "$MATRIX_HOST" -d "$CHAT_HOST" -d "$CALL_HOST"; then
   echo "인증서 발급 완료"
   [ -n "${CF_API_TOKEN:-}" ] && echo "Cloudflare SSL/TLS 모드를 'Full (strict)' 로 설정하세요 (Flexible 이면 무한 리디렉션)."
 else
