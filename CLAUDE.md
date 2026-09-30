@@ -39,6 +39,8 @@ Matrix(Synapse) + Element 웹, 우리끼리만 쓰는 메신저 설치 세트. �
 
 ## 기타
 - QR 로그인(MAS 필요)은 검토 후 보류함 (2026-09-30). 아이디·비밀번호 로그인 유지
+- 단체방: `#all:onepin.net`(전체공지), 새 계정 자동 입장(auto_join_rooms, 초대는 ADMIN_USER 가 대신).
+  처음 한 번 `sudo ./scripts/create-group-room.sh` 로 방 생성 + 기존 계정 초대
 - 계정 추가: `sudo ./scripts/add-user.sh 아이디 --name 닉네임` (비밀번호 12자 이상, 영문 소문자+숫자)
 - 사칭 주의 공지 문구: `notes/사칭주의-공지.md`
 - 시그널을 임시 비공개 메신저로 사용 중 (그룹 링크는 "관리자 승인 필요" 권장)

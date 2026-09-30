@@ -79,6 +79,8 @@ grep -qE '^NODE_IP=.+' .env || sed -i "s|^NODE_IP=.*|NODE_IP=$(curl -s --max-tim
 grep -qE '^NODE_IP=' .env || echo "NODE_IP=$(curl -s --max-time 8 https://ifconfig.me || hostname -I | awk '{print $1}')" >> .env
 set_default TELEGRAM_BRIDGE off
 set_default TELEGRAM_PUPPETING off
+set_default GROUP_ROOM_ALIAS all
+set_default GROUP_ROOM_NAME 전체공지
 chmod 600 .env
 set -a; . ./.env; set +a
 
@@ -86,7 +88,7 @@ for v in SERVER_NAME MATRIX_HOST CHAT_HOST CALL_HOST BRAND ADMIN_EMAIL ADMIN_USE
   [ -n "${!v:-}" ] || die ".env 의 $v 값이 비어 있습니다."
 done
 
-VARS='${SERVER_NAME} ${MATRIX_HOST} ${CHAT_HOST} ${CALL_HOST} ${BRAND} ${ADMIN_EMAIL} ${SYNAPSE_PORT} ${ELEMENT_PORT} ${ADMIN_PORT} ${JWT_PORT} ${CALL_PORT} ${MAX_UPLOAD_SIZE} ${POSTGRES_PASSWORD} ${REGISTRATION_SHARED_SECRET} ${MACAROON_SECRET_KEY} ${FORM_SECRET} ${CERT_DIR} ${WELLKNOWN_DIR} ${PUSH_APP_ID} ${SYGNAL_IP} ${VAPID_PUBLIC_KEY} ${LK_KEY} ${LK_SECRET} ${LK_AS_TOKEN} ${LK_HS_TOKEN} ${LK_JWT_IP} ${LK_UDP_START} ${LK_UDP_END} ${NODE_IP}'
+VARS='${SERVER_NAME} ${ADMIN_USER} ${GROUP_ROOM_ALIAS} ${MATRIX_HOST} ${CHAT_HOST} ${CALL_HOST} ${BRAND} ${ADMIN_EMAIL} ${SYNAPSE_PORT} ${ELEMENT_PORT} ${ADMIN_PORT} ${JWT_PORT} ${CALL_PORT} ${MAX_UPLOAD_SIZE} ${POSTGRES_PASSWORD} ${REGISTRATION_SHARED_SECRET} ${MACAROON_SECRET_KEY} ${FORM_SECRET} ${CERT_DIR} ${WELLKNOWN_DIR} ${PUSH_APP_ID} ${SYGNAL_IP} ${VAPID_PUBLIC_KEY} ${LK_KEY} ${LK_SECRET} ${LK_AS_TOKEN} ${LK_HS_TOKEN} ${LK_JWT_IP} ${LK_UDP_START} ${LK_UDP_END} ${NODE_IP}'
 WELLKNOWN_DIR="$DIR/data/well-known"; export WELLKNOWN_DIR
 render() { envsubst "$VARS" < "$1" > "$2"; }
 
@@ -373,6 +375,7 @@ cat <<MSG
   아이디 형식: @아이디:${SERVER_NAME}
 
   텔레그램 브릿지: ${TELEGRAM_BRIDGE:-off}  (사용법: README "텔레그램 브릿지")
+  단체방 만들기: sudo ./scripts/create-group-room.sh   (처음 한 번, 이후 새 계정은 자동 입장)
   사용자 추가: sudo ./scripts/add-user.sh hong
   접속 QR 코드: sudo ./scripts/qr.sh
 
