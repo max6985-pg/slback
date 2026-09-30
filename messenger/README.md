@@ -96,6 +96,7 @@ sudo ./install.sh
 sudo ./scripts/add-user.sh hong            # 일반 사용자 → @hong:onepin.net
 sudo ./scripts/add-user.sh kim --admin     # 관리자
 sudo ./scripts/add-user.sh double --name 더블   # 닉네임(표시 이름)까지 설정
+sudo ./scripts/add-users.sh hong kim:김철수 lee   # 여러 명 한 번에 (계정마다 임시 비밀번호 자동 생성)
 ```
 
 ## 단체방 (자동 입장)

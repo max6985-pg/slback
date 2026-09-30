@@ -26,8 +26,12 @@ if ! [[ "$USER_ID" =~ ^[a-z0-9._=/-]+$ ]]; then
   exit 1
 fi
 
-read -rsp "@${USER_ID}:${SERVER_NAME} 비밀번호: " PW; echo
-read -rsp "비밀번호 확인: " PW2; echo
+if [ -n "${ADD_USER_PASSWORD:-}" ]; then   # add-users.sh 가 넘겨주는 임시 비밀번호
+  PW="$ADD_USER_PASSWORD"; PW2="$PW"
+else
+  read -rsp "@${USER_ID}:${SERVER_NAME} 비밀번호: " PW; echo
+  read -rsp "비밀번호 확인: " PW2; echo
+fi
 [ "$PW" = "$PW2" ] || { echo "비밀번호가 일치하지 않습니다."; exit 1; }
 [ ${#PW} -ge 12 ]  || { echo "비밀번호는 12자 이상이어야 합니다."; exit 1; }
 [[ "$PW" =~ [0-9] && "$PW" =~ [a-z] ]] || { echo "비밀번호에 숫자와 영문 소문자를 모두 넣어 주세요."; exit 1; }
