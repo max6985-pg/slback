@@ -95,6 +95,7 @@ sudo ./install.sh
 ```bash
 sudo ./scripts/add-user.sh hong            # 일반 사용자 → @hong:onepin.net
 sudo ./scripts/add-user.sh kim --admin     # 관리자
+sudo ./scripts/add-user.sh double --name 더블   # 닉네임(표시 이름)까지 설정
 ```
 
 ## 휴대폰 (아이폰·안드로이드)
